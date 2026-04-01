@@ -12653,7 +12653,7 @@ function buildLevelSelect() {
   for (const lvl of LEVELS) {
     let card = document.createElement('div');
     card.className = 'level-card';
-    let unlocked = lvl.id === 0 || lvl.id <= save.highestUnlocked;
+    let unlocked = true; // All levels unlocked for testing
     if (!unlocked) card.classList.add('locked');
     card.style.background = unlocked ? lvl.color + '33' : '#222';
     card.style.borderColor = unlocked ? lvl.color : '#333';
