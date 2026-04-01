@@ -7838,14 +7838,7 @@ function update() {
         }
       }
 
-      // Level 2: Show exit portal when knight dies
-      if (!e.alive && exitPortal && exitPortal.hidden && currentLevel === 2) {
-        exitPortal.hidden = false;
-        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
-        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
-        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
-        shakeTimer = 15;
-      }
+      // Portal reveal handled in post-loop boss check
     } else if (e.type === 'war_chief') {
       // Goblin War Chief boss AI
       let dx = player.x - e.x;
@@ -7975,14 +7968,7 @@ function update() {
         hitStop = 8;
       }
 
-      // Reveal exit portal when war chief dies
-      if (!e.alive && exitPortal && exitPortal.hidden && currentLevel === 4) {
-        exitPortal.hidden = false;
-        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
-        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
-        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
-        shakeTimer = 15;
-      }
+      // Portal reveal handled in post-loop boss check
     } else if (e.type === 'dryad_boss') {
       // Corrupted Dryad boss AI — floats in place, shoots vines, spawns adds
       let dx = player.x - e.x;
@@ -8383,6 +8369,39 @@ function update() {
             }
           }
         }
+      }
+    }
+  }
+
+  // --- Boss portal reveal (checked after enemy loop so dead bosses still trigger it) ---
+  if (exitPortal && exitPortal.hidden) {
+    for (const e of enemies) {
+      // Level 2 knight boss
+      if (e.type === 'knight' && !e.alive && currentLevel === 2) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
+        break;
+      }
+      // Level 4 war chief boss
+      if (e.type === 'war_chief' && !e.alive && currentLevel === 4) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
+        break;
+      }
+      // Level 3 dryad boss
+      if (e.type === 'dryad_boss' && !e.alive && currentLevel === 3) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
+        break;
       }
     }
   }
