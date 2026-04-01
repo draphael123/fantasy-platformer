@@ -223,13 +223,7 @@ const ctx = canvas.getContext('2d');
 const BASE_W = 960, BASE_H = 540;
 canvas.width = BASE_W; canvas.height = BASE_H;
 
-// Apply default zoom on startup
-function applyZoomAtStartup() {
-  canvas.style.transform = `scale(${zoomLevel})`;
-  canvas.style.transformOrigin = 'center top';
-  document.getElementById('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%';
-}
-applyZoomAtStartup();
+// Apply default zoom on startup (called later after zoomLevel is defined)
 
 // ---- SOUND (Web Audio API — no files needed) ----
 let audioCtx = null;
@@ -417,6 +411,10 @@ let damageFlash = 0;
 let deadEnemies = []; // { x, y, vy, alpha, sprite, facing }
 let afterimages = []; // { x, y, sprite, facing, alpha }
 let zoomLevel = 1.25; // CSS zoom for canvas display
+// Apply zoom immediately
+canvas.style.transform = `scale(${zoomLevel})`;
+canvas.style.transformOrigin = 'center top';
+try { document.getElementById('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%'; } catch(e) {}
 let checkpoint = null; // { x, y, activated }
 let respawnPoint = { x: 80, y: 300 }; // updates when checkpoint is hit
 let hitStop = 0; // freeze frames on enemy kill for impact
