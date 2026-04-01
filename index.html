@@ -463,7 +463,7 @@ const MusicEngine = {
     else if (level === 1) this.startForest();
     else if (level === 2) this.startRiver();
     else if (level === 3) this.startCanopy();
-    else if (level === 4) this.startCave();
+    else if (level === 4) this.startStockade();
     else if (level === 5) this.startBoss();
   },
 
@@ -691,6 +691,61 @@ const MusicEngine = {
       drone.osc2.frequency.linearRampToValueAtTime(newRoot, t + 6);
     }, 30000 + Math.random() * 15000);
     this.layers.push({ stopFn: function() { clearInterval(droneShift); } });
+  },
+
+  // LEVEL 4: Goblin Stockade — war drums, tense pads, occasional horn stabs
+  startStockade() {
+    let scale = this.scales.boss; // Use boss scale for tense minor key
+    // Low war drum bass (~60-80Hz)
+    let drummBass = this.createPad(70, 'sine', 3, 0);
+    drummBass.filter.frequency.value = 200;
+    this.fadeTo(drummBass.gain, 0.05, 3);
+    this.layers.push(drummBass);
+
+    // Tension string pad on mid oscillator (~200Hz, minor key)
+    let tensionPad = this.createPad(196, 'triangle', 12, 0);
+    tensionPad.filter.frequency.value = 400;
+    tensionPad.filter.Q.value = 2;
+    this.fadeTo(tensionPad.gain, 0.035, 4);
+    this.layers.push(tensionPad);
+
+    let self = this;
+    // War drum hits — heavy beats with irregular rhythm
+    let drumPattern = [1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0];
+    let beatPhase = 0;
+    let bpm = 90;
+    let stepMs = (60000 / bpm) / 4;
+    let warDrumTimer = setInterval(function() {
+      if (!self.playing) return;
+      if (drumPattern[beatPhase % drumPattern.length]) {
+        // Heavy drum strike
+        self.playNote(75, 0.15, 'sine', 0.08);
+      }
+      beatPhase++;
+    }, stepMs);
+    this.layers.push({ stopFn: function() { clearInterval(warDrumTimer); } });
+
+    // Occasional horn stab on high oscillator (~300-400Hz)
+    let hornTimer = setInterval(function() {
+      if (!self.playing) return;
+      if (Math.random() < 0.25) {
+        let hornFreqs = [293.66, 349.23, 392.00, 440.00]; // E, F#, G, A
+        let hornFreq = hornFreqs[Math.floor(Math.random() * hornFreqs.length)];
+        self.playNote(hornFreq, 0.35, 'sawtooth', 0.045);
+      }
+    }, 6000 + Math.random() * 4000);
+    this.layers.push({ stopFn: function() { clearInterval(hornTimer); } });
+
+    // Tension pad shifts — change root note
+    let padShift = setInterval(function() {
+      if (!self.playing) return;
+      let newFreqs = [196, 220, 246.94]; // E, A, B
+      let newFreq = newFreqs[Math.floor(Math.random() * newFreqs.length)];
+      let t = audioCtx.currentTime;
+      tensionPad.osc1.frequency.linearRampToValueAtTime(newFreq, t + 5);
+      tensionPad.osc2.frequency.linearRampToValueAtTime(newFreq, t + 5);
+    }, 20000 + Math.random() * 10000);
+    this.layers.push({ stopFn: function() { clearInterval(padShift); } });
   },
 
   // LEVEL 5: Goblin Throne — tense drums, menacing brass, reactive to boss HP
@@ -965,6 +1020,7 @@ const LEVELS = [
   { id: 1, name: 'Dark Forest', color: '#27ae60', desc: 'Into the woods' },
   { id: 2, name: 'Waterfall Pass', color: '#3498db', desc: 'Archers await' },
   { id: 3, name: 'Thornwood Canopy', color: '#c0a030', desc: 'Above the trees' },
+  { id: 4, name: 'The Goblin Stockade', color: '#cc6622', desc: 'Storm the fortress' },
 ];
 
 // ---- GAME STATE ----
@@ -1010,7 +1066,7 @@ let playerVisualEffects = []; // Array for all player visual effects (dust, slas
 let playerDamageFlash = 0; // Frames remaining for red damage tint
 let dodgeRollAfterimages = []; // Array for dodge roll trailing images
 let lastPlayerPositions = []; // Track last 3 player positions for dodge afterimage
-const MAX_LEVEL = 3;
+const MAX_LEVEL = 4;
 let projectiles = []; // { x, y, vx, vy, w, h, type, life }
 let levelTimer = 0; // frame counter for level completion time
 let damageTaken = false; // tracks if player took any damage this level
@@ -2571,6 +2627,7 @@ function generateLevel() {
   else if (currentLevel === 1) { generateLevel1(); }
   else if (currentLevel === 2) { generateLevel2(); }
   else if (currentLevel === 3) { generateLevel3(); }
+  else if (currentLevel === 4) { generateLevel4(); }
   initWeather();
 }
 
@@ -4804,7 +4861,627 @@ function generateLevel3() {
   }
 }
 
-// generateLevel4 and generateLevel5 removed — will be rebuilt later
+function generateLevel4() {
+  let groundY = GROUND_Y;
+
+  // --- ZONE 1: FOREST APPROACH (cols 0 to ~58, 15% of level) ---
+  let zone1End = Math.floor(COLS * 0.15);
+
+  // Continuous ground with grass
+  for (let col = 0; col < zone1End; col++) {
+    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    // Forest grass decoration
+    if (Math.random() < 0.3) {
+      decorations.push({ x: col * TILE + 4 + Math.random() * 8, y: groundY * TILE - 6, type: 'fern' });
+    }
+  }
+
+  // Dense forest decorations: goblin huts, skull sticks, campfires
+  let hutPositions = [5, 12, 20, 32, 45];
+  for (let hPos of hutPositions) {
+    if (hPos < zone1End) {
+      decorations.push({ x: hPos * TILE, y: groundY * TILE, type: 'goblin_hut', size: 0.8 + Math.random() * 0.4 });
+      if (Math.random() < 0.6) {
+        decorations.push({ x: (hPos + 2) * TILE, y: groundY * TILE, type: 'skull_stick' });
+      }
+    }
+  }
+
+  let campfirePositions = [8, 25, 40];
+  for (let cfPos of campfirePositions) {
+    if (cfPos < zone1End) {
+      decorations.push({ x: cfPos * TILE + TILE / 2, y: groundY * TILE - 4, type: 'campfire' });
+    }
+  }
+
+  // Forest entrance sign
+  decorations.push({ x: 2 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'GOBLIN', text2: 'TERRITORY' });
+
+  // Patrol goblins in Zone 1 (3-4)
+  for (let g = 0; g < 4; g++) {
+    let gx = (6 + g * 10) * TILE + 4;
+    if (gx >= zone1End * TILE) break;
+    enemies.push({
+      x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
+      vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: gx, patrolRange: 5 * TILE,
+      animFrame: Math.random() * 100 | 0,
+    });
+  }
+
+  // Tripwire hazards (2-3 across Zone 1)
+  let tripwirePositions = [11, 26, 42];
+  for (let twPos of tripwirePositions) {
+    if (twPos < zone1End) {
+      hazards.push({
+        type: 'tripwire',
+        x: twPos * TILE, y: groundY * TILE - 2,
+        w: 2 * TILE, h: 4,
+        triggered: false,
+        arrowDir: 1,
+      });
+    }
+  }
+
+  // Gems in Zone 1 (6-8)
+  for (let g = 0; g < 8; g++) {
+    let gx = 10 + g * 6;
+    if (gx < zone1End && hasGroundAt(gx * TILE + TILE / 2)) {
+      collectibles.push({
+        x: gx * TILE + 10, y: (groundY - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+  }
+
+  // Checkpoint at end of Zone 1
+  checkpoint = {
+    x: (zone1End - 3) * TILE, y: groundY * TILE - 28,
+    w: TILE, h: 28, activated: false,
+  };
+
+  // --- ZONE 2: OUTER WALL (cols ~58 to ~98, 15-25%) ---
+  let zone2Start = zone1End;
+  let zone2End = Math.floor(COLS * 0.25);
+
+  // Build continuous ground in Zone 2
+  for (let col = zone2Start; col < zone2End; col++) {
+    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // Palisade wall: 6 tiles high, 3 tiles wide at col ~68
+  let wallCol = Math.floor((zone2Start + zone2End) / 2);
+  for (let r = 0; r < 6; r++) {
+    for (let w = 0; w < 3; w++) {
+      tiles.push({
+        x: (wallCol + w) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+
+  // Archer towers on top of wall (2 platforms, each 3-4 tiles wide)
+  let archerTower1Col = wallCol;
+  let archerTower2Col = wallCol + 4;
+  for (let a = 0; a < 3; a++) {
+    tiles.push({
+      x: (archerTower1Col + a) * TILE, y: (groundY - 7) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: a === 0, logEnd: a === 2, logLen: 3,
+    });
+    tiles.push({
+      x: (archerTower2Col + a) * TILE, y: (groundY - 7) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: a === 0, logEnd: a === 2, logLen: 3,
+    });
+  }
+
+  // Archers on towers
+  enemies.push({
+    x: (archerTower1Col + 1) * TILE + 4, y: (groundY - 8) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0, patrolOrigin: (archerTower1Col + 1) * TILE, patrolRange: 0,
+    animFrame: 0, shootTimer: 70, windingUp: 0, aggro: false,
+    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+  });
+  enemies.push({
+    x: (archerTower2Col + 1) * TILE + 4, y: (groundY - 8) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (archerTower2Col + 1) * TILE, patrolRange: 0,
+    animFrame: 0, shootTimer: 60, windingUp: 0, aggro: false,
+    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+  });
+
+  // Gate: 3-tile wide column of crate tiles (hp:3)
+  let gateCol = wallCol + 4;
+  for (let r = 0; r < 2; r++) {
+    for (let g = 0; g < 3; g++) {
+      tiles.push({
+        x: (gateCol + g) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'crate', hp: 3, maxHp: 3,
+      });
+    }
+  }
+
+  // Shield goblin defending gate
+  enemies.push({
+    x: (gateCol + 1) * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.5, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: (gateCol + 1) * TILE, patrolRange: 4 * TILE,
+    animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
+  });
+
+  // Gems behind wall (5)
+  for (let g = 0; g < 5; g++) {
+    collectibles.push({
+      x: (gateCol + 3 + g) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // --- ZONE 3: CAMP GROUNDS (cols ~98 to ~195, 25-50%) ---
+  let zone3Start = zone2End;
+  let zone3End = Math.floor(COLS * 0.50);
+
+  // Continuous ground in Zone 3
+  for (let col = zone3Start; col < zone3End; col++) {
+    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // Goblin huts scattered (4)
+  let hutPositions3 = [110, 130, 155, 175];
+  for (let hPos of hutPositions3) {
+    if (hPos < zone3End) {
+      decorations.push({ x: hPos * TILE, y: groundY * TILE, type: 'goblin_hut', size: 0.9 + Math.random() * 0.3 });
+    }
+  }
+
+  // Campfires (3)
+  let campfirePositions3 = [120, 145, 170];
+  for (let cfPos of campfirePositions3) {
+    if (cfPos < zone3End) {
+      decorations.push({ x: cfPos * TILE + TILE / 2, y: groundY * TILE - 4, type: 'campfire' });
+    }
+  }
+
+  // Skull sticks as weapon racks (3)
+  let skullPositions = [115, 150, 180];
+  for (let sPos of skullPositions) {
+    if (sPos < zone3End) {
+      decorations.push({ x: sPos * TILE, y: groundY * TILE, type: 'skull_stick' });
+    }
+  }
+
+  // Elevated wooden platforms with archers (3-4 tiles wide, 2-3 above ground)
+  let platformPositions = [
+    { col: 105, row: groundY - 2, len: 3 },
+    { col: 135, row: groundY - 3, len: 4 },
+    { col: 165, row: groundY - 2, len: 3 },
+  ];
+  for (let p of platformPositions) {
+    for (let c = 0; c < p.len; c++) {
+      tiles.push({
+        x: (p.col + c) * TILE, y: p.row * TILE,
+        w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === p.len - 1, logLen: p.len,
+      });
+    }
+    // Archer on this platform
+    enemies.push({
+      x: (p.col + Math.floor(p.len / 2)) * TILE + 4, y: (p.row - 1) * TILE, w: 24, h: 28,
+      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: Math.random() < 0.5 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: (p.col + Math.floor(p.len / 2)) * TILE, patrolRange: 0,
+      animFrame: 0, shootTimer: 50 + Math.random() * 40, windingUp: 0, aggro: false,
+      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+    });
+  }
+
+  // Regular goblins patrolling (3)
+  for (let g = 0; g < 3; g++) {
+    let gx = (108 + g * 20) * TILE + 4;
+    if (gx < zone3End * TILE) {
+      enemies.push({
+        x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
+        vx: (g % 2 === 0 ? 1 : -1) * 0.8, vy: 0,
+        type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+        facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
+        patrolOrigin: gx, patrolRange: 6 * TILE,
+        animFrame: Math.random() * 100 | 0,
+      });
+    }
+  }
+
+  // Shield goblins (2)
+  for (let s = 0; s < 2; s++) {
+    let sx = (122 + s * 30) * TILE + 4;
+    if (sx < zone3End * TILE) {
+      enemies.push({
+        x: sx, y: (groundY - 1) * TILE, w: 24, h: 28,
+        vx: 0.6, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+        facing: 1, attackCooldown: 0,
+        patrolOrigin: sx, patrolRange: 5 * TILE,
+        animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
+      });
+    }
+  }
+
+  // Mess hall with stacked crates (hp:2, breakable, with gems inside)
+  let messHallCol = 145;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      tiles.push({
+        x: (messHallCol + c) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
+      });
+    }
+  }
+  // Gems inside crates
+  for (let g = 0; g < 4; g++) {
+    collectibles.push({
+      x: (messHallCol + g % 2) * TILE + 10, y: (groundY - 1 + Math.floor(g / 2) - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // Caged area: 3x2 dirt box with opening and torch inside
+  let cageCol = 175;
+  let cageRow = groundY;
+  for (let r = 0; r < 2; r++) {
+    tiles.push({ x: (cageCol - 1) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (cageCol + 2) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  for (let c = 0; c < 2; c++) {
+    tiles.push({ x: (cageCol + c) * TILE, y: (cageRow - 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  decorations.push({ x: cageCol * TILE + TILE / 2, y: (cageRow - 1) * TILE + 4, type: 'torch' });
+
+  // Checkpoint2 in middle of Zone 3
+  hazards.push({
+    type: 'checkpoint2',
+    x: Math.floor((zone3Start + zone3End) / 2) * TILE, y: groundY * TILE - 28,
+    w: TILE, h: TILE, activated: false,
+  });
+
+  // Gems scattered in Zone 3 (10+)
+  for (let g = 0; g < 12; g++) {
+    let gx = zone3Start * TILE + 50 + g * 6 * TILE;
+    if (gx < zone3End * TILE && hasGroundAt(gx + 6)) {
+      collectibles.push({
+        x: gx + 10, y: (groundY - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+  }
+
+  // Hearts (2) in Zone 3
+  collectibles.push({
+    x: 125 * TILE, y: (groundY - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+  collectibles.push({
+    x: 170 * TILE, y: (groundY - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+
+  // --- ZONE 4: GAUNTLET TRENCH (cols ~195 to ~253, 50-65%) ---
+  let zone4Start = zone3End;
+  let zone4End = Math.floor(COLS * 0.65);
+
+  // Drop-down entrance: remove 3 ground tiles, floor 3 tiles below groundY
+  for (let col = zone4Start; col < zone4Start + 3; col++) {
+    // No ground tiles here — it's a pit
+  }
+  // Ground tiles after drop entrance
+  for (let col = zone4Start + 3; col < zone4End; col++) {
+    // Skip the pit drop and start the trench floor
+  }
+
+  // Trench floor is 3 tiles below ground level, 15 tiles long, dirt walls
+  let trenchFloorY = groundY + 3;
+  let trenchStartCol = zone4Start + 3;
+  let trenchEndCol = zone4End;
+
+  // Trench floor
+  for (let col = trenchStartCol; col < trenchEndCol; col++) {
+    tiles.push({
+      x: col * TILE, y: trenchFloorY * TILE, w: TILE, h: TILE, type: 'dirt',
+    });
+  }
+
+  // Left wall (dirt, full height from ground to floor)
+  for (let col = trenchStartCol - 1; col < trenchStartCol; col++) {
+    for (let row = groundY; row <= trenchFloorY; row++) {
+      tiles.push({
+        x: col * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+
+  // Right wall (dirt)
+  for (let col = trenchEndCol; col < trenchEndCol + 1; col++) {
+    for (let row = groundY; row <= trenchFloorY; row++) {
+      tiles.push({
+        x: col * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+
+  // Spike trap hazards on trench floor (every 2-3 tiles with 1-tile safe gaps)
+  for (let col = trenchStartCol; col < trenchEndCol; col += 3) {
+    if (col + 1 < trenchEndCol) {
+      hazards.push({
+        type: 'spike_trap',
+        x: col * TILE, y: trenchFloorY * TILE,
+        w: TILE, h: 8, damage: 1,
+      });
+      hazards.push({
+        type: 'spike_trap',
+        x: (col + 1) * TILE, y: trenchFloorY * TILE,
+        w: TILE, h: 8, damage: 1,
+      });
+      // col + 2 is safe gap
+    }
+  }
+
+  // Shield goblins in trench (2)
+  for (let s = 0; s < 2; s++) {
+    let sx = (trenchStartCol + 3 + s * 6) * TILE + 4;
+    if (sx < trenchEndCol * TILE) {
+      enemies.push({
+        x: sx, y: (trenchFloorY - 1) * TILE, w: 24, h: 28,
+        vx: 0.5, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+        facing: 1, attackCooldown: 0,
+        patrolOrigin: sx, patrolRange: 4 * TILE,
+        animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
+      });
+    }
+  }
+
+  // Archers on bridges above trench (2 log platforms spanning trench with archers)
+  let bridgeLeftCol = trenchStartCol + 2;
+  let bridgeRightCol = trenchEndCol - 4;
+  for (let b = 0; b < 2; b++) {
+    let bCol = b === 0 ? bridgeLeftCol : bridgeRightCol;
+    for (let c = 0; c < 3; c++) {
+      tiles.push({
+        x: (bCol + c) * TILE, y: (groundY - 1) * TILE,
+        w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 2, logLen: 3,
+      });
+    }
+    enemies.push({
+      x: (bCol + 1) * TILE + 4, y: (groundY - 2) * TILE, w: 24, h: 28,
+      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: b === 0 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: (bCol + 1) * TILE, patrolRange: 0,
+      animFrame: 0, shootTimer: 65, windingUp: 0, aggro: false,
+      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+    });
+  }
+
+  // Step-up exit (log platform staircase back to ground level)
+  let stairStartCol = trenchEndCol;
+  tiles.push({
+    x: stairStartCol * TILE, y: (trenchFloorY - 1) * TILE,
+    w: TILE, h: TILE, type: 'log', logStart: true, logEnd: false, logLen: 2,
+  });
+  tiles.push({
+    x: (stairStartCol + 1) * TILE, y: (trenchFloorY - 2) * TILE,
+    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: true, logLen: 2,
+  });
+
+  // Gems along trench safe gaps (8)
+  for (let g = 0; g < 8; g++) {
+    let gx = (trenchStartCol + 2 + g * 2) * TILE;
+    if (gx < trenchEndCol * TILE) {
+      collectibles.push({
+        x: gx + 10, y: (trenchFloorY - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+  }
+
+  // Checkpoint2 at trench exit
+  hazards.push({
+    type: 'checkpoint2',
+    x: (stairStartCol + 1) * TILE, y: (groundY - 2) * TILE - 28,
+    w: TILE, h: TILE, activated: false,
+  });
+
+  // --- ZONE 5: WAR CHIEF'S KEEP (cols ~253 to ~331, 65-85%) ---
+  let zone5Start = zone4End;
+  let zone5End = Math.floor(COLS * 0.85);
+
+  // Ground floor
+  for (let col = zone5Start; col < zone5End; col++) {
+    tiles.push({
+      x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground',
+    });
+    tiles.push({
+      x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt',
+    });
+  }
+
+  // Multi-level structure
+  let keepCol = Math.floor((zone5Start + zone5End) / 2);
+
+  // Second floor: log platforms at groundY-3, spanning ~12 tiles with gaps
+  let secondFloorStart = keepCol - 5;
+  for (let c = 0; c < 12; c++) {
+    tiles.push({
+      x: (secondFloorStart + c) * TILE, y: (groundY - 3) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 11, logLen: 12,
+    });
+  }
+
+  // Create a gap in the second floor for puzzle
+  for (let c = 4; c < 6; c++) {
+    tiles = tiles.filter(t => !(t.x === (secondFloorStart + c) * TILE && t.y === (groundY - 3) * TILE));
+  }
+
+  // Third floor: log platforms at groundY-6, spanning ~8 tiles
+  let thirdFloorStart = keepCol - 3;
+  for (let c = 0; c < 8; c++) {
+    tiles.push({
+      x: (thirdFloorStart + c) * TILE, y: (groundY - 6) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
+    });
+  }
+
+  // Breakable floor sections: crate tiles (hp:1) on second floor
+  for (let c = 8; c < 11; c++) {
+    tiles.push({
+      x: (secondFloorStart + c) * TILE, y: (groundY - 3) * TILE,
+      w: TILE, h: TILE, type: 'crate', hp: 1, maxHp: 1,
+    });
+  }
+
+  // Goblin knight on second floor
+  enemies.push({
+    x: (secondFloorStart + 3) * TILE + 4, y: (groundY - 4) * TILE, w: 40, h: 48,
+    vx: 0, vy: 0,
+    type: 'knight', hp: 3, maxHp: 3, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: (secondFloorStart + 3) * TILE, patrolRange: 6 * TILE,
+    animFrame: 0, grounded: false,
+    phase: 'idle', phaseTimer: 60,
+    invulnTimer: 0, stompCooldown: 0,
+  });
+
+  // Archers on third floor (2)
+  for (let a = 0; a < 2; a++) {
+    let ax = (thirdFloorStart + 1 + a * 4) * TILE + 4;
+    enemies.push({
+      x: ax, y: (groundY - 7) * TILE, w: 24, h: 28,
+      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: a === 0 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: ax, patrolRange: 0,
+      animFrame: 0, shootTimer: 60 + a * 20, windingUp: 0, aggro: false,
+      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+    });
+  }
+
+  // Regular goblins on ground floor (3)
+  for (let g = 0; g < 3; g++) {
+    let gx = (zone5Start + 5 + g * 8) * TILE + 4;
+    enemies.push({
+      x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
+      vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: gx, patrolRange: 5 * TILE,
+      animFrame: Math.random() * 100 | 0,
+    });
+  }
+
+  // Treasure room: off to the side at ground level, behind crate wall (hp:2)
+  let treasureCol = zone5End - 8;
+  for (let r = 0; r < 2; r++) {
+    for (let c = 0; c < 2; c++) {
+      tiles.push({
+        x: (treasureCol + c) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
+      });
+    }
+  }
+  // Gems in treasure room (8 + 1 heart)
+  for (let g = 0; g < 8; g++) {
+    collectibles.push({
+      x: (treasureCol + g % 2) * TILE + 10, y: (groundY - 1 + Math.floor(g / 2) - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  collectibles.push({
+    x: (treasureCol + 1) * TILE, y: (groundY - 2) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+
+  // Torches on every floor (3-4 scattered)
+  let torchPositions = [
+    { col: zone5Start + 3, row: groundY },
+    { col: secondFloorStart + 2, row: groundY - 3 },
+    { col: secondFloorStart + 8, row: groundY - 3 },
+    { col: thirdFloorStart + 3, row: groundY - 6 },
+  ];
+  for (let tp of torchPositions) {
+    decorations.push({ x: tp.col * TILE + TILE / 2, y: tp.row * TILE - 4, type: 'torch' });
+  }
+
+  // Banner decorations (war chief theme)
+  decorations.push({ x: (keepCol - 2) * TILE, y: (groundY - 8) * TILE, type: 'tutSign', text1: 'WAR', text2: 'CHIEF' });
+
+  // Checkpoint2 before boss arena
+  hazards.push({
+    type: 'checkpoint2',
+    x: (zone5End - 2) * TILE, y: groundY * TILE - 28,
+    w: TILE, h: TILE, activated: false,
+  });
+
+  // --- ZONE 6: BOSS ARENA (cols ~331 to end, 85-100%) ---
+  let zone6Start = zone5End;
+  let bossArenaEnd = COLS;
+
+  // Flat open arena with continuous ground
+  for (let col = zone6Start; col < bossArenaEnd; col++) {
+    tiles.push({
+      x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground',
+    });
+    tiles.push({
+      x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt',
+    });
+  }
+
+  // Wooden fence walls on edges (dirt, 2 high)
+  for (let row = 0; row < 2; row++) {
+    tiles.push({
+      x: (zone6Start - 2) * TILE, y: (groundY - row) * TILE,
+      w: TILE, h: TILE, type: 'dirt',
+    });
+    tiles.push({
+      x: (bossArenaEnd - 1) * TILE, y: (groundY - row) * TILE,
+      w: TILE, h: TILE, type: 'dirt',
+    });
+  }
+
+  // War Chief boss
+  let bossX = (zone6Start + 5) * TILE;
+  enemies.push({
+    x: bossX, y: (groundY - 2) * TILE, w: 48, h: 56,
+    vx: 0, vy: 0,
+    type: 'war_chief', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    patrolOrigin: bossX, patrolRange: 6 * TILE,
+    animFrame: 0, grounded: false,
+    phase: 'idle', phaseTimer: 60,
+    chargeSpeed: 0, charging: false,
+    slamCooldown: 0, rallyCooldown: 0,
+    enraged: false,
+  });
+
+  // Exit portal (hidden until boss dies)
+  exitPortal = {
+    x: (bossArenaEnd - 4) * TILE, y: (groundY - 2) * TILE,
+    w: TILE * 2, h: TILE * 2, hidden: true,
+  };
+
+  // Torches flanking the arena (2)
+  decorations.push({ x: (zone6Start - 1) * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
+  decorations.push({ x: (bossArenaEnd - 1) * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
+
+  // Gems scattered in arena (4)
+  for (let g = 0; g < 4; g++) {
+    let gx = (zone6Start + 8 + g * 4) * TILE;
+    if (gx < bossArenaEnd * TILE) {
+      collectibles.push({
+        x: gx + 10, y: (groundY - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+  }
+}
 
 
 // ---- PLAYER ----
@@ -7169,6 +7846,143 @@ function update() {
         scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
         shakeTimer = 15;
       }
+    } else if (e.type === 'war_chief') {
+      // Goblin War Chief boss AI
+      let dx = player.x - e.x;
+      let dist = Math.abs(dx);
+      e.facing = dx > 0 ? 1 : -1;
+
+      // Enrage at half health
+      if (e.hp <= e.maxHp / 2 && !e.enraged) {
+        e.enraged = true;
+        spawnParticles(e.x + e.w/2, e.y + e.h/2, '#ff4422', 25, 10);
+        scorePopups.push({ x: e.x + e.w/2, y: e.y - 30, text: 'ENRAGED!', life: 90 });
+        shakeTimer = 12;
+      }
+
+      let speedMult = e.enraged ? 1.5 : 1.0;
+      e.phaseTimer--;
+
+      if (e.phase === 'idle') {
+        // Walk toward player
+        if (dist > 60) {
+          e.vx = e.facing * 1.2 * speedMult;
+        } else {
+          e.vx *= 0.8;
+        }
+        if (e.phaseTimer <= 0) {
+          // Choose next attack
+          let roll = Math.random();
+          if (roll < 0.35) {
+            e.phase = 'charge';
+            e.phaseTimer = 30;
+            e.chargeSpeed = 0;
+            e.charging = true;
+          } else if (roll < 0.65) {
+            e.phase = 'slam_windup';
+            e.phaseTimer = 25;
+          } else if (roll < 0.85 && e.rallyCooldown <= 0) {
+            e.phase = 'rally';
+            e.phaseTimer = 45;
+            e.rallyCooldown = 600; // 10 second cooldown
+          } else {
+            e.phase = 'idle';
+            e.phaseTimer = 40 + Math.floor(Math.random() * 30);
+          }
+        }
+      } else if (e.phase === 'charge') {
+        // Wind up then dash
+        if (e.phaseTimer > 15) {
+          // Wind up — shake and slow down
+          e.vx *= 0.5;
+          if (e.phaseTimer === 25) {
+            spawnParticles(e.x + e.w/2, e.y + e.h - 5, '#aa6633', 8, 4);
+          }
+        } else {
+          // Charge!
+          e.chargeSpeed = 7 * speedMult * e.facing;
+          e.vx = e.chargeSpeed;
+          // Dust trail
+          if (frameCount % 2 === 0) {
+            spawnParticles(e.x + e.w/2 - e.facing * 20, e.y + e.h, '#aa8866', 3, 3);
+          }
+        }
+        if (e.phaseTimer <= 0) {
+          e.phase = 'idle';
+          e.phaseTimer = 50;
+          e.charging = false;
+          e.vx *= 0.3;
+        }
+      } else if (e.phase === 'slam_windup') {
+        e.vx *= 0.3;
+        if (e.phaseTimer <= 0) {
+          e.phase = 'slam';
+          e.phaseTimer = 10;
+          // Ground slam shockwave
+          shakeTimer = 10;
+          playSound('hit');
+          spawnParticles(e.x + e.w/2, e.y + e.h, '#cc8844', 20, 8);
+          // Damage player if nearby and grounded
+          if (dist < 120 && player.grounded && player.invincible <= 0) {
+            player.hp--;
+            player.vy = -8;
+            player.invincible = 60;
+            damageFlash = 1;
+            shakeTimer = 8;
+          }
+        }
+      } else if (e.phase === 'slam') {
+        e.vx *= 0.5;
+        if (e.phaseTimer <= 0) {
+          e.phase = 'idle';
+          e.phaseTimer = 60;
+        }
+      } else if (e.phase === 'rally') {
+        e.vx = 0;
+        if (e.phaseTimer === 30) {
+          // Spawn 2 goblins
+          scorePopups.push({ x: e.x + e.w/2, y: e.y - 20, text: 'RALLY!', life: 60 });
+          playSound('hit');
+          for (let s = 0; s < 2; s++) {
+            let sx = e.x + (s === 0 ? -60 : e.w + 30);
+            enemies.push({
+              x: sx, y: (e.y + e.h) - 28, w: 24, h: 28,
+              vx: 0, vy: -3, type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+              facing: s === 0 ? 1 : -1, attackCooldown: 0,
+              patrolOrigin: sx, patrolRange: 4 * TILE,
+              animFrame: Math.random() * 100 | 0, grounded: false,
+            });
+            spawnParticles(sx + 12, e.y + e.h/2, '#88cc44', 10, 5);
+          }
+        }
+        if (e.phaseTimer <= 0) {
+          e.phase = 'idle';
+          e.phaseTimer = 80;
+        }
+      }
+
+      // Cooldown ticks
+      if (e.rallyCooldown > 0) e.rallyCooldown--;
+
+      // Contact damage (charge attack)
+      if (e.charging && e.alive && rectOverlap(e, player) && player.invincible <= 0) {
+        player.hp--;
+        player.vx = e.facing * 8;
+        player.vy = -6;
+        player.invincible = 60;
+        damageFlash = 1;
+        shakeTimer = 8;
+        hitStop = 8;
+      }
+
+      // Reveal exit portal when war chief dies
+      if (!e.alive && exitPortal && exitPortal.hidden && currentLevel === 4) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
+      }
     } else if (e.type === 'dryad_boss') {
       // Corrupted Dryad boss AI — floats in place, shoots vines, spawns adds
       let dx = player.x - e.x;
@@ -8352,6 +9166,36 @@ function update() {
     }
   }
 
+  // --- Tripwire hazard ---
+  for (const h of hazards) {
+    if (h.type === 'tripwire' && !h.triggered && rectOverlap(player, h)) {
+      h.triggered = true;
+      playSound('swing');
+      spawnParticles(h.x + h.w/2, h.y, '#ffaa00', 8, 4);
+      // Fire arrows from the side
+      for (let a = 0; a < 3; a++) {
+        projectiles.push({
+          x: h.x + h.w * (h.arrowDir > 0 ? 0 : 1),
+          y: h.y - 20 - a * 24,
+          vx: 6 * h.arrowDir, vy: 0, w: 8, h: 3,
+          type: 'arrow', life: 120, fromEnemy: true,
+        });
+      }
+    }
+  }
+
+  // --- Spike trap hazard ---
+  for (const h of hazards) {
+    if (h.type === 'spike_trap' && rectOverlap(player, h) && player.invincible <= 0) {
+      player.hp--;
+      player.vy = -6;
+      player.invincible = 60;
+      damageFlash = 1;
+      shakeTimer = 5;
+      spawnParticles(player.x + player.w/2, player.y + player.h, '#ff4444', 8, 4);
+    }
+  }
+
   // --- Checkpoint ---
   if (checkpoint && !checkpoint.activated && rectOverlap(player, checkpoint)) {
     checkpoint.activated = true;
@@ -9247,6 +10091,65 @@ function drawBackground() {
       }
     }
     ctx.restore();
+  } else if (currentLevel === 4) {
+    // Goblin Stockade — dark forest with firelight glow
+    // Night sky
+    let grad4 = ctx.createLinearGradient(0, 0, 0, BASE_H);
+    grad4.addColorStop(0, '#0a0a15');
+    grad4.addColorStop(0.4, '#1a1510');
+    grad4.addColorStop(1, '#2a1a0a');
+    ctx.fillStyle = grad4;
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+    // Distant treeline (dark silhouettes)
+    ctx.fillStyle = '#0d0d08';
+    for (let t = 0; t < 12; t++) {
+      let tx = t * 100 - (camera.x * 0.05) % 100 - 50;
+      let th = 120 + Math.sin(t * 1.7) * 40;
+      ctx.beginPath();
+      ctx.moveTo(tx - 30, BASE_H * 0.6);
+      ctx.lineTo(tx, BASE_H * 0.6 - th);
+      ctx.lineTo(tx + 30, BASE_H * 0.6);
+      ctx.fill();
+    }
+
+    // Mid-ground trees (slightly lighter)
+    ctx.fillStyle = '#1a1a0d';
+    for (let t = 0; t < 8; t++) {
+      let tx = t * 150 - (camera.x * 0.12) % 150 - 50;
+      let th = 160 + Math.sin(t * 2.3) * 50;
+      ctx.beginPath();
+      ctx.moveTo(tx - 40, BASE_H * 0.7);
+      ctx.lineTo(tx, BASE_H * 0.7 - th);
+      ctx.lineTo(tx + 40, BASE_H * 0.7);
+      ctx.fill();
+      // Trunk
+      ctx.fillRect(tx - 6, BASE_H * 0.7 - th + 30, 12, th - 30);
+    }
+
+    // Smoke columns rising from camp (2-3)
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#666655';
+    for (let s = 0; s < 3; s++) {
+      let sx = 200 + s * 300 - (camera.x * 0.08) % 100;
+      for (let p = 0; p < 5; p++) {
+        let py = BASE_H * 0.5 - p * 30;
+        let pr = 10 + p * 6 + Math.sin(frameCount * 0.02 + s + p) * 4;
+        ctx.beginPath();
+        ctx.arc(sx + Math.sin(frameCount * 0.01 + p * 0.5 + s) * 8, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+
+    // Firelight glow on horizon
+    ctx.globalAlpha = 0.2 + Math.sin(frameCount * 0.05) * 0.05;
+    let fireGrad = ctx.createRadialGradient(BASE_W/2, BASE_H * 0.7, 0, BASE_W/2, BASE_H * 0.7, 300);
+    fireGrad.addColorStop(0, '#ff6622');
+    fireGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = fireGrad;
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.globalAlpha = 1;
   } else {
   // Tutorial and other levels - Deep forest sky
   let grad = ctx.createLinearGradient(0, 0, 0, BASE_H);
@@ -11151,6 +12054,57 @@ function draw() {
     }
   }
 
+  // Tripwire drawing
+  for (const h of hazards) {
+    if (h.type === 'tripwire') {
+      let tx = h.x - camera.x;
+      let ty = h.y - camera.y;
+      if (!h.triggered) {
+        ctx.strokeStyle = '#cc8844';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(tx, ty + 2);
+        ctx.lineTo(tx + h.w, ty + 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Small posts on each end
+        ctx.fillStyle = '#8B6914';
+        ctx.fillRect(tx - 2, ty - 6, 4, 10);
+        ctx.fillRect(tx + h.w - 2, ty - 6, 4, 10);
+      }
+    }
+  }
+
+  // Spike trap drawing
+  for (const h of hazards) {
+    if (h.type === 'spike_trap') {
+      let sx = h.x - camera.x;
+      let sy = h.y - camera.y;
+      ctx.fillStyle = '#888888';
+      // Base
+      ctx.fillRect(sx, sy + 4, h.w, 4);
+      // Spikes
+      ctx.fillStyle = '#aaaaaa';
+      for (let s = 0; s < h.w; s += 8) {
+        ctx.beginPath();
+        ctx.moveTo(sx + s, sy + 4);
+        ctx.lineTo(sx + s + 4, sy - 4);
+        ctx.lineTo(sx + s + 8, sy + 4);
+        ctx.fill();
+      }
+      // Blood/rust tint
+      ctx.fillStyle = 'rgba(180, 60, 40, 0.3)';
+      for (let s = 0; s < h.w; s += 8) {
+        ctx.beginPath();
+        ctx.moveTo(sx + s + 1, sy + 3);
+        ctx.lineTo(sx + s + 4, sy - 2);
+        ctx.lineTo(sx + s + 7, sy + 3);
+        ctx.fill();
+      }
+    }
+  }
+
   // Checkpoint campfire
   if (checkpoint) {
     let cx = checkpoint.x - camera.x;
@@ -12352,6 +13306,85 @@ function draw() {
           ctx.fillText('★', starX, starY);
         }
       }
+    } else if (e.type === 'war_chief') {
+      // Goblin War Chief — large armored goblin
+      let wcx = e.x - camera.x;
+      let wcy = e.y - camera.y;
+      let f = e.facing;
+
+      // Enrage glow
+      if (e.enraged) {
+        ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.2) * 0.15;
+        ctx.fillStyle = '#ff4422';
+        ctx.fillRect(wcx - 4, wcy - 4, e.w + 8, e.h + 8);
+        ctx.globalAlpha = 1;
+      }
+
+      // Body (dark armor)
+      ctx.fillStyle = e.hurtTimer > 0 ? '#ffffff' : (e.enraged ? '#8B2500' : '#554433');
+      ctx.fillRect(wcx + 4, wcy + 12, e.w - 8, e.h - 20);
+
+      // Armor plates
+      ctx.fillStyle = e.enraged ? '#cc4411' : '#777766';
+      ctx.fillRect(wcx + 6, wcy + 14, e.w - 12, 8);
+      ctx.fillRect(wcx + 6, wcy + 26, e.w - 12, 8);
+
+      // Head
+      ctx.fillStyle = e.hurtTimer > 0 ? '#ffffff' : '#668844';
+      ctx.fillRect(wcx + 10, wcy, e.w - 20, 16);
+
+      // Helmet/crown
+      ctx.fillStyle = e.enraged ? '#cc3300' : '#aa8833';
+      ctx.fillRect(wcx + 8, wcy - 4, e.w - 16, 6);
+      // Crown spikes
+      ctx.fillRect(wcx + 10, wcy - 10, 4, 8);
+      ctx.fillRect(wcx + e.w - 14, wcy - 10, 4, 8);
+      ctx.fillRect(wcx + e.w/2 - 2, wcy - 12, 4, 10);
+
+      // Eyes (red when enraged)
+      ctx.fillStyle = e.enraged ? '#ff0000' : '#ff4444';
+      ctx.fillRect(wcx + 14, wcy + 4, 5, 4);
+      ctx.fillRect(wcx + e.w - 19, wcy + 4, 5, 4);
+
+      // War axe (large)
+      let axeX = f > 0 ? wcx + e.w : wcx - 14;
+      let axePhase = e.phase === 'charge' && e.phaseTimer <= 15 ? Math.sin(frameCount * 0.5) * 4 : 0;
+      ctx.fillStyle = '#8B7355';
+      ctx.fillRect(axeX, wcy + 8 + axePhase, 6, 36);
+      // Axe head
+      ctx.fillStyle = '#aaaaaa';
+      ctx.fillRect(axeX - (f > 0 ? 0 : 8), wcy + 4 + axePhase, 14, 12);
+
+      // Legs
+      ctx.fillStyle = '#443322';
+      let legAnim = Math.sin(frameCount * 0.15) * 3;
+      ctx.fillRect(wcx + 10, wcy + e.h - 12 + legAnim, 10, 12);
+      ctx.fillRect(wcx + e.w - 20, wcy + e.h - 12 - legAnim, 10, 12);
+
+      // Boots
+      ctx.fillStyle = '#666655';
+      ctx.fillRect(wcx + 8, wcy + e.h - 4, 14, 4);
+      ctx.fillRect(wcx + e.w - 22, wcy + e.h - 4, 14, 4);
+
+      // Charge dust trail
+      if (e.phase === 'charge' && e.phaseTimer <= 15 && frameCount % 3 === 0) {
+        spawnParticles(wcx + e.w/2 - f * 20 + camera.x, wcy + e.h + camera.y, '#aa8866', 3, 3);
+      }
+
+      // HP bar
+      let hpBarW = 50;
+      let hpBarX = wcx + e.w/2 - hpBarW/2;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(hpBarX, wcy - 18, hpBarW, 6);
+      ctx.fillStyle = e.enraged ? '#ff3300' : '#cc4444';
+      ctx.fillRect(hpBarX, wcy - 18, hpBarW * (e.hp / e.maxHp), 6);
+
+      // Boss name
+      ctx.fillStyle = e.enraged ? '#ff6644' : '#ff8866';
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('WAR CHIEF', wcx + e.w/2, wcy - 22);
+      ctx.textAlign = 'left';
     } else if (e.type === 'archer') {
       // Draw goblin body (reuse GOBLIN sprite)
       drawPixelArt(sprite, sx, e.y - 2 + bob, 3, e.facing < 0);
