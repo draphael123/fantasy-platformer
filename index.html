@@ -1579,8 +1579,10 @@ function generateLevel() {
   // Set level length — all main levels are long, tutorial stays shorter
   if (currentLevel === 0) {
     COLS = Math.ceil(BASE_W / TILE) + 120; // tutorial stays shorter
+  } else if (currentLevel === 4) {
+    COLS = Math.ceil(BASE_W / TILE) + 90; // Level 4: The Hollow Root — small enclosed room
   } else {
-    COLS = Math.ceil(BASE_W / TILE) + 360; // all main levels are long
+    COLS = Math.ceil(BASE_W / TILE) + 360; // all other main levels are long
   }
   LEVEL_W = COLS * TILE;
 
@@ -3140,272 +3142,149 @@ function generateLevel3() {
 }
 
 function generateLevel4() {
-  // THE HOLLOW ROOT — descending underground cavern
-  let groundY = GROUND_Y;
+  // THE HOLLOW ROOT — Inside a Giant Tree
+  // First section: a small enclosed cave room that feels like the interior of a hollow tree trunk
+  // Future sections can expand from here
 
-  // --- Surface intro (first 6%) ---
-  let introEnd = Math.floor(COLS * 0.06);
-  for (let col = 0; col < introEnd; col++) {
+  let groundY = GROUND_Y;
+  let roomWidth = COLS - 10; // Leave some margin on edges
+  let roomHeight = 8; // Tall enough for interesting vertical play
+  let ceilingY = groundY - roomHeight;
+
+  // --- FLOOR (solid ground across full width) ---
+  for (let col = 0; col < roomWidth; col++) {
     tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
     tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
   }
 
-  // --- Descending root platforms (6% to 85%) ---
-  let descentStart = introEnd;
-  let descentEnd = Math.floor(COLS * 0.85);
-  let rootPlatforms = [];
-  let curRow = groundY;
-  let col = descentStart;
-  let platIndex = 0;
-
-  while (col < descentEnd - 4) {
-    let platLen = 3 + Math.floor(Math.random() * 5); // 3-7 tiles
-    if (col + platLen >= descentEnd) platLen = descentEnd - col - 1;
-    if (platLen < 2) break;
-
-    curRow = Math.max(groundY - 2, Math.min(groundY + 40, curRow)); // allow going deep
-
-    let isMushroomBounce = (platIndex % 6 === 5); // every 6th platform is a mushroom bounce
-
-    rootPlatforms.push({ col: col, row: curRow, len: platLen, isMushroom: isMushroomBounce });
-    for (let c = 0; c < platLen; c++) {
-      if (isMushroomBounce) {
-        tiles.push({
-          x: (col + c) * TILE, y: curRow * TILE, w: TILE, h: TILE / 2,
-          type: 'leaf_bounce', bounceAnim: 0, // reuse bounce mechanic
-        });
-      } else {
-        tiles.push({
-          x: (col + c) * TILE, y: curRow * TILE, w: TILE, h: TILE,
-          type: 'root_platform',
-          branchStart: c === 0, branchEnd: c === platLen - 1,
-        });
-      }
-    }
-
-    // Next platform: descend
-    let heightChange;
-    let progress = col / descentEnd;
-    if (progress < 0.3) {
-      heightChange = Math.random() < 0.5 ? 1 : (Math.random() < 0.5 ? 2 : 0);
-    } else if (progress < 0.7) {
-      heightChange = Math.random() < 0.4 ? 2 : (Math.random() < 0.6 ? 1 : 0);
-    } else {
-      heightChange = Math.random() < 0.5 ? 1 : 0;
-    }
-    // Gap scaled to drop height
-    let gap;
-    if (heightChange >= 2) gap = 2;
-    else if (heightChange === 1) gap = 2 + Math.floor(Math.random() * 2);
-    else gap = 2 + Math.floor(Math.random() * 2);
-
-    col += platLen + gap;
-    curRow += heightChange;
-    platIndex++;
+  // --- CEILING (solid ground across top, creating enclosed room) ---
+  for (let col = 0; col < roomWidth; col++) {
+    tiles.push({ x: col * TILE, y: ceilingY * TILE, w: TILE, h: TILE, type: 'ground' });
   }
 
-  // --- Boss Arena at the bottom ---
-  let bossStartCol = Math.floor(COLS * 0.85);
-  let bossEndCol = COLS - 4;
-  let bossRow = curRow + 2;
-  // Flat arena floor
-  for (let c = bossStartCol; c < bossEndCol; c++) {
-    tiles.push({ x: c * TILE, y: bossRow * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: c * TILE, y: (bossRow + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  // --- LEFT WALL (solid bark from floor to ceiling) ---
+  let leftWallCol = 2;
+  for (let row = ceilingY; row <= groundY; row++) {
+    tiles.push({ x: leftWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'ground' });
   }
-  // Crystal nodes around the arena (3 spots) — decorative pillars
-  let arenaW = (bossEndCol - bossStartCol);
-  for (let i = 0; i < 3; i++) {
-    let crystalCol = bossStartCol + Math.floor(arenaW * (0.2 + i * 0.3));
-    decorations.push({
-      x: crystalCol * TILE, y: bossRow * TILE,
-      type: 'crystal_node', size: 1, phase: i * Math.PI * 0.66,
+
+  // --- RIGHT WALL (solid bark from floor to ceiling) ---
+  let rightWallCol = roomWidth - 3;
+  for (let row = ceilingY; row <= groundY; row++) {
+    tiles.push({ x: rightWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'ground' });
+  }
+
+  // --- ENEMIES (goblins patrolling the floor) ---
+  // Spawn 3-4 goblins at various positions along the floor
+  let goblinPositions = [8, 18, 32, 45];
+  for (let pos of goblinPositions) {
+    if (pos >= rightWallCol - 2) break; // Don't spawn too close to right wall
+    enemies.push({
+      x: pos * TILE, y: (groundY - 1) * TILE, w: 24, h: 28,
+      vx: Math.random() < 0.5 ? 0.5 : -0.5, vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: Math.random() < 0.5 ? 1 : -1,
+      attackCooldown: Math.random() * 120 | 0,
+      patrolOrigin: pos * TILE, patrolRange: (rightWallCol - leftWallCol - 4) * TILE,
+      animFrame: Math.random() * 100 | 0,
     });
   }
 
-  // --- TREANT BOSS ---
-  let treantX = (bossStartCol + Math.floor(arenaW / 2)) * TILE;
-  enemies.push({
-    x: treantX, y: (bossRow - 2) * TILE, w: 48, h: 56,
-    vx: 0, vy: 0,
-    type: 'treant', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: bossStartCol * TILE, patrolRange: arenaW * TILE - 80,
-    animFrame: 0, grounded: false,
-    phase: 'idle', // idle | chase | slam | spore | recover
-    phaseTimer: 90,
-    slamCooldown: 0,
-    sporeCooldown: 0,
+  // --- COLLECTIBLES (gems scattered around, heart, checkpoint) ---
+  // Gems spread across the floor (8-10 scattered)
+  for (let i = 0; i < 10; i++) {
+    let gemCol = 5 + i * 5 + (Math.random() - 0.5) * 3;
+    if (gemCol >= rightWallCol - 2) break;
+    collectibles.push({
+      x: gemCol * TILE, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // Heart pickup in middle of room
+  let heartX = Math.floor(roomWidth / 2) * TILE;
+  collectibles.push({
+    x: heartX, y: (groundY - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
   });
 
-  // --- Enemies ---
-  // Goblins on platforms
-  for (let i = 2; i < rootPlatforms.length; i += 3) {
-    let bp = rootPlatforms[i];
-    if (bp.len < 3 || bp.isMushroom) continue;
-    enemies.push({
-      x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
-      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
-      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: 1, attackCooldown: 0,
-      patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 24,
-      animFrame: Math.random() * 100 | 0,
-    });
-  }
+  // --- CHECKPOINT (middle of room, slightly elevated) ---
+  checkpoint = {
+    x: Math.floor(roomWidth / 2.2) * TILE, y: (groundY - 5) * TILE,
+    w: TILE, h: 28, activated: false,
+  };
 
-  // Goblins on platforms
-  for (let i = 1; i < rootPlatforms.length; i += 4) {
-    let bp = rootPlatforms[i];
-    if (bp.len < 3 || bp.isMushroom) continue;
-    enemies.push({
-      x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
-      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
-      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: 1, attackCooldown: 0,
-      patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 24,
-      animFrame: Math.random() * 100 | 0,
-    });
-  }
+  // --- EXIT PORTAL (right side, elevated for visibility) ---
+  exitPortal = {
+    x: (rightWallCol - 3) * TILE, y: (groundY - 3) * TILE,
+    w: TILE * 2, h: TILE * 2
+  };
 
-  // Goblins on platforms
-  for (let i = 4; i < rootPlatforms.length; i += 5) {
-    let bp = rootPlatforms[i];
-    if (bp.len < 3 || bp.isMushroom) continue;
-    enemies.push({
-      x: (bp.col + 2) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
-      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
-      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: 1, attackCooldown: 0,
-      patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 28,
-      animFrame: Math.random() * 100 | 0,
-    });
-  }
+  // --- DECORATIONS (to make it feel like inside a hollow tree) ---
 
-  // --- Collectibles ---
-  for (let i = 0; i < rootPlatforms.length; i++) {
-    let bp = rootPlatforms[i];
-    for (let c = 0; c < bp.len; c += 2) {
-      if (Math.random() < 0.35) continue;
-      collectibles.push({
-        x: (bp.col + c) * TILE + 10, y: (bp.row - 1) * TILE + 4,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-  }
-  // Hearts every 6 platforms
-  for (let i = 3; i < rootPlatforms.length; i += 6) {
-    let bp = rootPlatforms[i];
-    collectibles.push({
-      x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE,
-      w: 16, h: 16, type: 'heart', alive: true,
-    });
-  }
-  // Intro gems
-  for (let i = 0; i < 5; i++) {
-    collectibles.push({ x: (2 + i * 2) * TILE, y: (groundY - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
-  }
-  // Boss arena hearts
-  collectibles.push({ x: (bossStartCol + 3) * TILE, y: (bossRow - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
-  collectibles.push({ x: (bossEndCol - 5) * TILE, y: (bossRow - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
-
-  // --- Checkpoints ---
-  let cp1 = rootPlatforms[Math.floor(rootPlatforms.length * 0.33)];
-  let cp2 = rootPlatforms[Math.floor(rootPlatforms.length * 0.66)];
-  if (cp1) {
-    checkpoint = {
-      x: (cp1.col + 1) * TILE, y: cp1.row * TILE - 28,
-      w: TILE, h: 28, activated: false,
-    };
-  }
-  if (cp2) {
-    hazards.push({
-      type: 'checkpoint2',
-      x: (cp2.col + 1) * TILE, y: cp2.row * TILE - 28,
-      w: TILE, h: 28, activated: false,
-    });
-  }
-
-  // Exit portal in boss arena
-  exitPortal = { x: (bossEndCol - 3) * TILE, y: (bossRow - 2) * TILE, w: TILE * 2, h: TILE * 2 };
-
-  // --- Decorations ---
-  let totalLen = COLS * TILE;
-  // Glowing mushrooms on walls
-  for (let i = 0; i < 50; i++) {
-    let mx = i * (totalLen / 50) + Math.random() * 100;
-    if (mx > totalLen) break;
-    // Find nearest platform row for this x
-    let nearRow = groundY;
-    for (const rp of rootPlatforms) {
-      if (mx >= rp.col * TILE && mx < (rp.col + rp.len) * TILE) { nearRow = rp.row; break; }
-    }
-    decorations.push({
-      x: mx, y: (nearRow + 1) * TILE + Math.random() * 20,
-      type: 'glow_mushroom',
-      color: ['#44ffaa','#8866ff','#44aaff','#ff66cc'][Math.floor(Math.random() * 4)],
-      size: 0.5 + Math.random() * 0.8,
-      phase: Math.random() * Math.PI * 2,
-    });
-  }
-  // Hanging roots from above
-  for (let i = 0; i < 30; i++) {
-    let rx = i * (totalLen / 30) + Math.random() * 200;
-    if (rx > totalLen) break;
-    let nearRow = groundY;
-    for (const rp of rootPlatforms) {
-      if (Math.abs(rx - rp.col * TILE) < TILE * 4) { nearRow = rp.row; break; }
-    }
-    decorations.push({
-      x: rx, y: (nearRow - 5) * TILE,
-      type: 'hanging_root',
-      length: 3 + Math.floor(Math.random() * 4),
-      phase: Math.random() * Math.PI * 2,
-    });
-  }
-  // Cave fireflies (bioluminescent particles)
-  for (let i = 0; i < 60; i++) {
-    let fx = i * (totalLen / 60) + Math.random() * 120;
-    if (fx > totalLen) break;
-    let nearRow = groundY;
-    for (const rp of rootPlatforms) {
-      if (Math.abs(fx - rp.col * TILE) < TILE * 6) { nearRow = rp.row; break; }
-    }
-    decorations.push({
-      x: fx, y: (nearRow - 2) * TILE - Math.random() * 60,
-      type: 'firefly', phase: Math.random() * Math.PI * 2,
-    });
-  }
-
-  // --- Level 4 Dripping Stalactites, Glowing Mushrooms, and Echo Ripples ---
-  // Initialize 5-7 stalactites on the ceiling at random positions
+  // Hanging roots from ceiling (4-6 decorations)
+  let rootSpacing = roomWidth / 6;
   for (let i = 0; i < 6; i++) {
-    let stX = (descentStart + i * ((descentEnd - descentStart) / 6)) * TILE + Math.random() * 200;
-    if (stX > LEVEL_W - 100) break;
-    drippingStalactites.push({
-      x: stX,
-      y: -50 + Math.random() * 30,
-      dropTimer: 90 + Math.floor(Math.random() * 90),
-      staggerOffset: i * 15,
+    let rootX = (leftWallCol + 2) + i * rootSpacing + (Math.random() - 0.5) * 3;
+    if (rootX >= rightWallCol - 2) break;
+    decorations.push({
+      x: rootX * TILE, y: ceilingY * TILE,
+      type: 'hanging_root',
+      length: 2 + Math.floor(Math.random() * 2),
+      phase: Math.random() * Math.PI * 2,
     });
   }
 
-  // Add 4-5 glowing mushroom decorations if not already present
-  let mushroomCount = decorations.filter(d => d.type === 'mushroom').length;
-  if (mushroomCount < 4) {
-    for (let i = 0; i < 5; i++) {
-      let nearPlat = rootPlatforms[Math.floor(Math.random() * rootPlatforms.length)];
-      if (!nearPlat) continue;
-      glowingMushrooms.push({
-        x: (nearPlat.col + 1) * TILE + Math.random() * 30,
-        y: (nearPlat.row - 1) * TILE,
-        glowPhase: Math.random() * Math.PI * 2,
-      });
-    }
+  // Glowing mushrooms on floor and walls (5-8 scattered)
+  let mushSpacing = roomWidth / 7;
+  for (let i = 0; i < 7; i++) {
+    let mushX = (leftWallCol + 1) + i * mushSpacing + (Math.random() - 0.5) * 2;
+    if (mushX >= rightWallCol - 1) break;
+    decorations.push({
+      x: mushX * TILE, y: (groundY - 1) * TILE - 2,
+      type: 'glow_mushroom',
+      color: ['#44ffaa', '#8866ff', '#44aaff'][Math.floor(Math.random() * 3)],
+      size: 0.6 + Math.random() * 0.6,
+      phase: Math.random() * Math.PI * 2,
+    });
   }
 
-  // Cracked walls with secret rooms (Level 4)
-  tiles.push({ x: 60 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
-  tiles.push({ x: 120 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
+  // Moss/vine patches on left and right walls (3-4 per side)
+  for (let i = 0; i < 4; i++) {
+    let mossY = ceilingY + 2 + i * 2;
+    if (mossY >= groundY) break;
+    // Left wall moss
+    decorations.push({
+      x: leftWallCol * TILE - 4, y: mossY * TILE,
+      type: 'vine',
+      length: 1 + Math.floor(Math.random() * 1),
+      phase: Math.random() * Math.PI * 2,
+    });
+    // Right wall moss
+    decorations.push({
+      x: rightWallCol * TILE + 4, y: mossY * TILE,
+      type: 'vine',
+      length: 1 + Math.floor(Math.random() * 1),
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // Fireflies floating in the room (ambient bioluminescence, 3-5)
+  for (let i = 0; i < 5; i++) {
+    let flyX = (leftWallCol + 2) * TILE + Math.random() * (rightWallCol - leftWallCol - 4) * TILE;
+    let flyY = (ceilingY + 2) * TILE + Math.random() * (roomHeight - 3) * TILE;
+    decorations.push({
+      x: flyX, y: flyY,
+      type: 'firefly',
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // Large tree cross-section circle in background (decorative, hints at scale)
+  decorations.push({
+    x: Math.floor(roomWidth / 2) * TILE, y: (groundY - 4) * TILE,
+    type: 'rock', // reusing rock type as a large circular shape
+  });
 }
 
 function generateLevel5() {
