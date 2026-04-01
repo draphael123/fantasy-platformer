@@ -2251,38 +2251,36 @@ function generateLevel2() {
 
   // --- Level 2 layout: short forest intro → long water/log section → boss bridge → exit ---
   let waterStart = Math.floor(COLS * 0.12); // water zone starts early
-  let waterEnd = Math.floor(COLS * 0.82);   // water zone ends late
-  let bossStart = waterEnd + 2;              // boss bridge zone
-  let bossEnd = bossStart + 12;             // 12-tile wide bridge for the boss fight
+  let waterEnd = Math.floor(COLS * 0.88);   // water extends almost to end
+  let bridgeStart = waterEnd + 1;            // long bridge for knight boss
+  let bridgeEnd = COLS - 4;                 // bridge goes almost to level end
 
-  // --- Build ground: intro forest + boss bridge + exit forest ---
-  for (let col = 0; col < COLS; col++) {
-    // Water zone: no ground
-    if (col >= waterStart && col <= waterEnd) continue;
+  // --- Build ground: intro forest only (no post-water grassland) ---
+  for (let col = 0; col < waterStart; col++) {
     tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
     tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
   }
 
-  // Transition ledges into/out of water zone (3 tiles each side)
+  // Transition ledge into water zone (3 tiles)
   for (let i = 1; i <= 3; i++) {
     let entryCol = waterStart - 1 + i;
-    let exitCol = waterEnd + 1 - i;
-    if (entryCol >= waterStart && entryCol <= waterEnd) {
+    if (entryCol < waterEnd) {
       tiles.push({ x: entryCol * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
       tiles.push({ x: entryCol * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
     }
-    if (exitCol >= waterStart && exitCol <= waterEnd) {
-      tiles.push({ x: exitCol * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
-      tiles.push({ x: exitCol * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    }
   }
 
-  // --- Boss bridge: wooden bridge planks over water ---
-  for (let c = bossStart; c < bossEnd; c++) {
+  // --- Long boss bridge: wooden bridge planks over water ---
+  for (let c = bridgeStart; c <= bridgeEnd; c++) {
     tiles.push({
       x: c * TILE, y: groundY * TILE, w: TILE, h: TILE,
-      type: 'bridge_plank', plankStart: c === bossStart, plankEnd: c === bossEnd - 1,
+      type: 'bridge_plank', plankStart: c === bridgeStart, plankEnd: c === bridgeEnd,
     });
+  }
+  // Small platform at very end for exit portal
+  for (let c = bridgeEnd + 1; c < COLS; c++) {
+    tiles.push({ x: c * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: c * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
   }
 
   // --- FLOATING LOG PLATFORMS across the water zone ---
@@ -2305,11 +2303,11 @@ function generateLevel2() {
     let gap = 2 + Math.floor(Math.random() * 2); // 2 or 3 tile gap (always jumpable)
     curCol += logLen + gap;
   }
-  // Safety: ensure last platform reaches near exit ledge
+  // Safety: ensure last platform reaches near the bridge start
   if (logPlatforms.length > 0) {
     let last = logPlatforms[logPlatforms.length - 1];
     let lastEnd = last.col + last.len;
-    let exitLedge = waterEnd - 2;
+    let exitLedge = bridgeStart - 1;
     if (exitLedge - lastEnd > 3) {
       let bridgeCol = exitLedge - 3;
       let bridgeLen = 3;
@@ -2371,11 +2369,48 @@ function generateLevel2() {
     archerCount++;
   }
 
-  // --- GIANT TOAD MINI-BOSS in water zone ---
-  // REMOVED: Toad boss removed due to broken sprite rendering
+  // --- GOBLIN KNIGHT MINI-BOSS on the bridge ---
+  let knightX = (bridgeStart + Math.floor((bridgeEnd - bridgeStart) / 2)) * TILE;
+  enemies.push({
+    x: knightX, y: (groundY - 2) * TILE, w: 40, h: 48,
+    vx: 0, vy: 0,
+    type: 'knight', hp: 5, maxHp: 5, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    patrolOrigin: knightX, patrolRange: 4 * TILE,
+    animFrame: 0, grounded: false,
+    phase: 'idle', phaseTimer: 60,
+    invulnTimer: 0, // invulnerability after being hit
+    stompCooldown: 0, // stomp attack timer
+  });
 
-  // --- SECRET TREASURE ROOM behind a large waterfall (no boss) ---
-  let treasureWfCol = waterEnd - 15;
+  // --- Second checkpoint before the bridge ---
+  hazards.push({
+    type: 'checkpoint2',
+    x: (bridgeStart - 3) * TILE, y: groundY * TILE - 28,
+    w: TILE, h: TILE, activated: false,
+  });
+
+  // --- Fish hazards: fish jump from water periodically and damage player ---
+  let fishHazardCount = Math.floor((waterEnd - waterStart) / 25);
+  for (let i = 0; i < fishHazardCount; i++) {
+    let fishCol = waterStart + 10 + i * 25 + Math.floor(Math.random() * 10);
+    if (fishCol >= waterEnd - 5) break;
+    hazards.push({
+      type: 'jumping_fish',
+      x: fishCol * TILE, y: groundY * TILE,
+      w: 16, h: 16,
+      baseY: groundY * TILE,
+      jumpTimer: Math.floor(Math.random() * 180),
+      jumpInterval: 120 + Math.floor(Math.random() * 120),
+      jumping: false,
+      jumpProgress: 0,
+      jumpHeight: 3 * TILE + Math.random() * 2 * TILE,
+      facing: Math.random() < 0.5 ? 1 : -1,
+    });
+  }
+
+  // --- SECRET TREASURE ROOM ---
+  let treasureWfCol = Math.floor(waterStart + (waterEnd - waterStart) * 0.7);
   let treasureWfRow = groundY - 1;
 
   // Secret treasure room floor (8 tiles wide)
@@ -2385,15 +2420,6 @@ function generateLevel2() {
       type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
     });
   }
-
-  // Waterfall curtain - now hides a treasure room instead of a boss
-  decorations.push({
-    type: 'waterfall_curtain',
-    x: treasureWfCol * TILE, y: (treasureWfRow - 5) * TILE,
-    w: TILE * 3, h: TILE * 6,
-    phase: 0,
-    isBossWaterfall: true,
-  });
 
   // Ancient stone shrine/pedestal in the treasure room
   decorations.push({
@@ -2459,17 +2485,10 @@ function generateLevel2() {
     extraPlatCount++;
   }
 
-  // --- Second waterfall secret with bonus gems ---
-  // Add another walkable waterfall elsewhere in the water zone with bonus gems
+  // --- Second secret alcove with bonus gems ---
   let secondWaterfallCol = waterStart + Math.floor((waterEnd - waterStart) * 0.6);
-  decorations.push({
-    type: 'waterfall_curtain',
-    x: secondWaterfallCol * TILE, y: (groundY - 3) * TILE,
-    w: TILE * 2, h: TILE * 4,
-    phase: Math.PI,
-  });
 
-  // Hidden alcove behind second waterfall
+  // Hidden alcove
   for (let c = 0; c < 2; c++) {
     tiles.push({
       x: (secondWaterfallCol + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
@@ -2605,25 +2624,18 @@ function generateLevel2() {
     });
   }
 
-  // Exit portal (after boss bridge)
-  exitPortal = { x: (COLS - 6) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
+  // Exit portal (at end of bridge, hidden until knight boss dies)
+  exitPortal = { x: (COLS - 4) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2, hidden: true };
 
-  // --- Waterfall curtain secrets — hidden rooms behind waterfalls ---
-  let waterfallCount = 0;
+  // --- Secret alcoves with bonus items ---
+  let alcoveCount = 0;
   for (let i = 2; i < logPlatforms.length; i += 4) {
-    if (waterfallCount >= 3) break;
+    if (alcoveCount >= 3) break;
     let plat = logPlatforms[i];
     if (plat.len < 3) continue;
     let wfCol = plat.col + plat.len + 1;
     let wfRow = plat.row;
-    // Place a waterfall decoration with a hidden alcove behind it
-    decorations.push({
-      type: 'waterfall_curtain',
-      x: wfCol * TILE, y: (wfRow - 3) * TILE,
-      w: TILE * 2, h: TILE * 4,
-      phase: Math.random() * Math.PI * 2,
-    });
-    // Hidden alcove platform behind the waterfall
+    // Hidden alcove platform
     for (let c = 0; c < 3; c++) {
       tiles.push({
         x: (wfCol + c) * TILE, y: wfRow * TILE, w: TILE, h: TILE,
@@ -2642,45 +2654,36 @@ function generateLevel2() {
       x: (wfCol + 1) * TILE, y: (wfRow - 1) * TILE,
       w: 16, h: 16, type: 'heart', alive: true,
     });
-    waterfallCount++;
+    alcoveCount++;
   }
 
   // --- Decorations ---
   let waterStartX = waterStart * TILE;
-  let waterEndX = waterEnd * TILE;
 
-  // Trees (forest zones only), scale with level length
-  let treeSpacing2 = LEVEL_W / 70; // ~70 trees across the level
-  for (let i = 0; i < 70; i++) {
-    let tx = i * treeSpacing2 + Math.random() * 80;
-    if (tx >= LEVEL_W) break;
-    if (tx > waterStartX - 100 && tx < waterEndX + 100) continue;
+  // Trees (intro forest only)
+  for (let i = 0; i < 12; i++) {
+    let tx = 60 + i * Math.floor(waterStartX / 12) + Math.random() * 40;
+    if (tx >= waterStartX - 50) break;
     let ts = 0.8 + Math.random() * 0.5;
     decorations.push({ x: tx, y: groundY * TILE, type: 'tree', size: ts });
   }
 
-  // Ferns, mushrooms, grass in forest zones only, scale with level length
-  let fernSpacing2 = LEVEL_W / 120; // ~120 ferns across the level
-  for (let i = 0; i < 120; i++) {
-    let fx = i * fernSpacing2 + Math.random() * 50;
-    if (fx >= LEVEL_W) break;
-    if (fx > waterStartX && fx < waterEndX) continue;
+  // Ferns, mushrooms, grass in intro forest only
+  for (let i = 0; i < 20; i++) {
+    let fx = 30 + i * Math.floor(waterStartX / 20) + Math.random() * 30;
+    if (fx >= waterStartX) break;
     if (!hasGroundAt(fx + 4)) continue;
     decorations.push({ x: fx, y: groundY * TILE - 4, type: 'fern' });
   }
-  let mushroomSpacing2 = LEVEL_W / 40; // ~40 mushrooms across the level
-  for (let i = 0; i < 40; i++) {
-    let mx = i * mushroomSpacing2 + Math.random() * 120;
-    if (mx >= LEVEL_W) break;
-    if (mx > waterStartX && mx < waterEndX) continue;
+  for (let i = 0; i < 8; i++) {
+    let mx = 50 + i * Math.floor(waterStartX / 8) + Math.random() * 40;
+    if (mx >= waterStartX) break;
     if (!hasGroundAt(mx + 4)) continue;
     decorations.push({ x: mx, y: groundY * TILE - 8, type: 'mushroom' });
   }
-  let grassSpacing2 = LEVEL_W / 150; // ~150 grass tufts across the level
-  for (let i = 0; i < 150; i++) {
-    let gx = i * grassSpacing2 + Math.random() * 30;
-    if (gx >= LEVEL_W) break;
-    if (gx > waterStartX && gx < waterEndX) continue;
+  for (let i = 0; i < 25; i++) {
+    let gx = 20 + i * Math.floor(waterStartX / 25) + Math.random() * 20;
+    if (gx >= waterStartX) break;
     if (!hasGroundAt(gx + 4)) continue;
     decorations.push({
       x: gx, y: groundY * TILE, type: 'grass',
@@ -2726,55 +2729,6 @@ function generateLevel2() {
   // Signpost
   decorations.push({ x: 4 * TILE, y: groundY * TILE, type: 'signpost' });
 
-  // --- Level 2 Waterfall Effects ---
-  // Initialize waterfall mist, fish jumps, and rainbow near waterfalls
-  // Find all waterfall_curtain decorations
-  let waterfallDecorations = decorations.filter(d => d.type === 'waterfall_curtain');
-
-  // Create mists and effects for each waterfall
-  for (const wf of waterfallDecorations) {
-    // Waterfall spray mist: 10-15 particles per waterfall
-    waterfallMists.push({
-      x: wf.x,
-      y: wf.y,
-      particles: [],
-    });
-    // Initialize mist particles
-    for (let m = 0; m < 12; m++) {
-      waterfallMists[waterfallMists.length - 1].particles.push({
-        x: Math.random() * 40 - 20,
-        y: Math.random() * (wf.h || 80),
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -0.3,
-        life: Math.random() * 60,
-        maxLife: 60 + Math.random() * 30,
-      });
-    }
-
-    // Fish jump spots: 2-3 near each waterfall
-    if (Math.random() < 0.6) {
-      fishJumps.push({
-        x: wf.x + Math.random() * 100 - 50,
-        y: groundY * TILE + 20,
-        active: false,
-        phase: Math.random() * 300,
-      });
-    }
-  }
-
-  // Rainbow decoration near the largest waterfall (the boss waterfall)
-  let bossWf = waterfallDecorations.find(d => d.isBossWaterfall);
-  if (bossWf) {
-    rainbowDecoration = {
-      x: bossWf.x + 20,
-      y: bossWf.y - 60,
-      opacity: 0.08,
-    };
-  }
-
-  // Cracked walls with secret rooms (Level 2)
-  tiles.push({ x: 100 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
-  tiles.push({ x: 250 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
 }
 
 function generateLevel3() {
@@ -3096,14 +3050,6 @@ function generateLevel3() {
     });
   }
 
-  // --- ATMOSPHERE: Distant waterfall mist ---
-  decorations.push({
-    type: 'distant_waterfall',
-    x: COLS * TILE * 0.4,
-    y: 0,
-    phase: 0,
-  });
-
   // --- Level 3 Butterflies and Blooming Flowers ---
   // Add 3-5 butterflies that flutter and scatter when player gets close
   for (let i = 0; i < 4; i++) {
@@ -3152,44 +3098,43 @@ function generateLevel4() {
   for (let col = 0; col < roomWidth; col++) {
     // Skip the gap area for the main floor
     if (col >= gapStartCol && col < gapEndCol) {
-      // Leave this area empty to create the crevice
       continue;
     }
-    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'cave_floor' });
+    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'cave_dirt' });
   }
 
   // Add narrow platforms over the gap (2-3 tiles wide at varying heights)
   let platformPositions = [
-    { col: 20, height: 1 }, // First platform (1 tile lower)
-    { col: 22, height: 2 }, // Middle platform (2 tiles lower)
-    { col: 25, height: 1 }, // Third platform
+    { col: 20, height: 1 },
+    { col: 22, height: 2 },
+    { col: 25, height: 1 },
   ];
   for (let p of platformPositions) {
-    tiles.push({ x: p.col * TILE, y: (groundY - p.height) * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: p.col * TILE, y: (groundY - p.height + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: p.col * TILE, y: (groundY - p.height) * TILE, w: TILE, h: TILE, type: 'cave_floor' });
+    tiles.push({ x: p.col * TILE, y: (groundY - p.height + 1) * TILE, w: TILE, h: TILE, type: 'cave_dirt' });
   }
 
-  // Add some small alcove area below the gap (3-4 tiles down, at columns 23-24)
+  // Add some small alcove area below the gap
   for (let col = 23; col <= 24; col++) {
-    tiles.push({ x: col * TILE, y: (groundY + 3) * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: (groundY + 3) * TILE, w: TILE, h: TILE, type: 'cave_floor' });
   }
 
-  // --- CEILING (solid ground across top, creating enclosed room) ---
+  // --- CEILING (bark ceiling across top) ---
   for (let col = 0; col < roomWidth; col++) {
-    tiles.push({ x: col * TILE, y: ceilingY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: ceilingY * TILE, w: TILE, h: TILE, type: 'cave_ceiling' });
   }
 
-  // --- LEFT WALL (solid bark from floor to ceiling) ---
+  // --- LEFT WALL (bark wall from floor to ceiling) ---
   let leftWallCol = 2;
   for (let row = ceilingY; row <= groundY; row++) {
-    tiles.push({ x: leftWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: leftWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'cave_wall' });
   }
 
-  // --- RIGHT WALL (solid bark from floor to ceiling) ---
+  // --- RIGHT WALL (bark wall from floor to ceiling) ---
   let rightWallCol = roomWidth - 3;
   for (let row = ceilingY; row <= groundY; row++) {
-    tiles.push({ x: rightWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: rightWallCol * TILE, y: row * TILE, w: TILE, h: TILE, type: 'cave_wall' });
   }
 
   // --- ENEMIES (goblins patrolling the floor) ---
@@ -4643,37 +4588,7 @@ function updateLevelAmbientEffects() {
     }
   }
 
-  // Level 2: Waterfall mists, fish jumps, and rainbow
-  if (currentLevel === 2) {
-    // Update waterfall mists
-    for (let mist of waterfallMists) {
-      for (let i = mist.particles.length - 1; i >= 0; i--) {
-        let p = mist.particles[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life--;
-        if (p.life <= 0) {
-          // Respawn particle
-          mist.particles[i] = {
-            x: Math.random() * 40 - 20,
-            y: Math.random() * 80,
-            vx: (Math.random() - 0.5) * 0.5,
-            vy: -0.3,
-            life: Math.random() * 60,
-            maxLife: 60 + Math.random() * 30,
-          };
-        }
-      }
-    }
-    // Update fish jump timers
-    for (let fish of fishJumps) {
-      fish.phase--;
-      if (fish.phase <= 0) {
-        fish.active = true;
-        fish.phase = 300 + Math.floor(Math.random() * 120);
-      }
-    }
-  }
+  // (Waterfall effects removed)
 
   // Level 3: Butterflies and blooming flowers
   if (currentLevel === 3) {
@@ -5045,9 +4960,11 @@ function update() {
       // Damage nearby grounded enemies
       for (const e of enemies) {
         if (!e.alive || e.hurtTimer > 0) continue;
+        if (e.type === 'knight' && e.invulnTimer > 0) continue; // knight invulnerability
         let dist = Math.abs((e.x + e.w/2) - (player.x + player.w/2));
         if (dist < 80 && Math.abs(e.y - player.y) < 20) {
           e.hp--;
+          if (e.type === 'knight') e.invulnTimer = 60;
           e.hurtTimer = 15;
           e.vy = -4;
           e.vx = Math.sign(e.x - player.x) * 3;
@@ -5214,8 +5131,10 @@ function update() {
     };
     for (const e of enemies) {
       if (!e.alive || e.hurtTimer > 0) continue;
+      if (e.type === 'knight' && e.invulnTimer > 0) continue; // knight invulnerability
       if (rectOverlap(attackBox, e)) {
         e.hp--;
+        if (e.type === 'knight') e.invulnTimer = 60;
         e.hurtTimer = 15;
         e.vx = player.facing * 4;
         e.vy = -3;
@@ -5278,10 +5197,12 @@ function update() {
   if (!player.grounded && player.vy > 0) {
     for (const e of enemies) {
       if (!e.alive || e.hurtTimer > 0) continue;
+      if (e.type === 'knight' && e.invulnTimer > 0) continue; // knight invulnerability
       let stompBox = { x: player.x, y: player.y + player.h - 6, w: player.w, h: 10 };
       let enemyTop = { x: e.x, y: e.y, w: e.w, h: 10 };
       if (rectOverlap(stompBox, enemyTop) && player.vy > 1) {
         e.hp--;
+        if (e.type === 'knight') e.invulnTimer = 60;
         e.hurtTimer = 15;
         player.vy = player.jumpForce * 0.6;
         player.jumpsLeft = Math.min(player.jumpsLeft + 1, player.maxJumps);
@@ -5728,14 +5649,29 @@ function update() {
       e.aggro = dist < 300;
       e.phaseTimer--;
 
+      // Invulnerability timer countdown
+      if (e.invulnTimer === undefined) e.invulnTimer = 0;
+      if (e.invulnTimer > 0) e.invulnTimer--;
+
+      // Stomp cooldown
+      if (e.stompCooldown === undefined) e.stompCooldown = 0;
+      if (e.stompCooldown > 0) e.stompCooldown--;
+
       if (e.phase === 'idle') {
         // Slowly patrol back and forth
         e.vx = e.facing * 0.4;
         if (e.x > e.patrolOrigin + e.patrolRange) e.vx = -0.4;
         if (e.x < e.patrolOrigin - e.patrolRange) e.vx = 0.4;
         if (e.aggro && e.phaseTimer <= 0) {
-          e.phase = 'chase';
-          e.phaseTimer = 120;
+          // Choose attack: charge or stomp
+          if (e.stompCooldown <= 0 && dist < 120) {
+            e.phase = 'stomp_telegraph';
+            e.phaseTimer = 30;
+            e.vx = 0;
+          } else {
+            e.phase = 'chase';
+            e.phaseTimer = 120;
+          }
         }
       } else if (e.phase === 'chase') {
         // Walk toward player at moderate speed
@@ -5743,28 +5679,71 @@ function update() {
         e.facing = Math.sign(dx);
         // Start charge if close enough and timer expired
         if (dist < 180 && e.phaseTimer <= 0) {
-          // Telegraph: red flash before charging
-          e.telegraphTimer = 20; // visual telegraph time
+          e.telegraphTimer = 20;
           e.phase = 'charge';
-          e.phaseTimer = 30; // charge duration
-          e.vx = e.facing * 4.5; // fast charge
+          e.phaseTimer = 30;
+          e.vx = e.facing * 4.5;
           playSound('attack');
           shakeTimer = 4;
+        }
+        // Switch to stomp if very close
+        if (dist < 80 && e.stompCooldown <= 0 && e.phaseTimer > 20) {
+          e.phase = 'stomp_telegraph';
+          e.phaseTimer = 30;
+          e.vx = 0;
         }
         if (e.phaseTimer <= 0) {
           e.phase = 'idle';
           e.phaseTimer = 60;
         }
       } else if (e.phase === 'charge') {
-        // Charging — fast movement, deals damage on contact
+        // Charging — fast movement
         e.vx = e.facing * 4.5;
         if (e.phaseTimer <= 0) {
           e.phase = 'recover';
-          e.phaseTimer = 50; // recovery: stands still, vulnerable
+          e.phaseTimer = 50;
           e.vx = 0;
         }
+      } else if (e.phase === 'stomp_telegraph') {
+        // Telegraph stomp: knight raises foot, glows red
+        e.vx = 0;
+        if (e.phaseTimer <= 0) {
+          e.phase = 'stomp';
+          e.phaseTimer = 10;
+          e.stompCooldown = 180; // 3 seconds between stomps
+          playSound('attack');
+          shakeTimer = 15;
+          // Stomp shockwave — damages player if on ground and within range
+          let stompRange = 4 * TILE;
+          let stompDx = Math.abs(player.x - e.x);
+          if (stompDx < stompRange && player.grounded && player.invincible <= 0 && !player.dodging) {
+            player.hp -= 1;
+            damageTaken = true;
+            player.invincible = 45;
+            player.vy = -8;
+            playerDamageFlash = 10;
+            playSound('hurt');
+            spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff4444', 12, 6);
+          }
+          // Visual shockwave particles along ground
+          for (let s = -stompRange; s <= stompRange; s += 12) {
+            particles.push({
+              x: e.x + e.w / 2 + s, y: e.y + e.h,
+              vx: Math.sign(s) * 2, vy: -1 - Math.random() * 2,
+              life: 15 + Math.random() * 10,
+              color: '#aa8844', size: 3 + Math.random() * 3,
+            });
+          }
+        }
+      } else if (e.phase === 'stomp') {
+        // Brief stomp landing
+        e.vx = 0;
+        if (e.phaseTimer <= 0) {
+          e.phase = 'recover';
+          e.phaseTimer = 60;
+        }
       } else if (e.phase === 'recover') {
-        // Recovering after charge — stands still
+        // Recovering — stands still
         e.vx = 0;
         if (e.phaseTimer <= 0) {
           e.phase = e.aggro ? 'chase' : 'idle';
@@ -5782,18 +5761,18 @@ function update() {
         player.vx = -e.facing * 6;
         shakeTimer = 12;
         damageFlash = 0.6;
-        playerDamageFlash = 10; // Red damage tint for 10 frames
+        playerDamageFlash = 10;
         hitStop = 8;
         playSound('hurt');
         spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff4444', 15, 8);
       } else if (rectOverlap(player, e) && player.blocking) {
-        // Parry vs regular block
         let isParry = player.parryWindow > 0;
-        if (isParry) {
-          // Perfect parry — stuns any phase, deals 1 damage
+        if (isParry && e.invulnTimer <= 0) {
+          // Perfect parry — stuns, deals 1 damage (only if not invulnerable)
           e.hp--;
+          e.invulnTimer = 60; // Invulnerable for 1 second after hit
           e.phase = 'recover';
-          e.phaseTimer = 90; // long stun from parry
+          e.phaseTimer = 90;
           e.vx = -e.facing * 3;
           e.vy = -2;
           shakeTimer = 12;
@@ -5802,7 +5781,6 @@ function update() {
           spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#88ffff', 12, 6);
           scorePopups.push({ x: player.x + player.w/2, y: player.y - 20, text: 'PARRY!', life: 60 });
           playSound('block');
-          // Style meter: parry_counter
           let currentAttackType = 'parry_counter';
           if (lastAttackType !== currentAttackType) {
             styleMeter = Math.min(100, styleMeter + 25);
@@ -5831,6 +5809,15 @@ function update() {
           spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ffaa22', 12, 6);
           playSound('block');
         }
+      }
+
+      // Level 2: Show exit portal when knight dies
+      if (!e.alive && exitPortal && exitPortal.hidden && currentLevel === 2) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
       }
     } else if (e.type === 'toad_boss') {
       // Giant Toad boss AI — hops and attacks with tongue
@@ -6038,7 +6025,7 @@ function update() {
         // Dramatic burst of golden light
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
-        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'FLAME IGNITED!', life: 90 });
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
       }
 
     } else if (e.type === 'dryad_boss') {
@@ -6899,6 +6886,39 @@ function update() {
     }
   }
 
+  // --- Jumping fish hazards ---
+  for (const h of hazards) {
+    if (h.type !== 'jumping_fish') continue;
+    h.jumpTimer--;
+    if (h.jumpTimer <= 0 && !h.jumping) {
+      h.jumping = true;
+      h.jumpProgress = 0;
+    }
+    if (h.jumping) {
+      h.jumpProgress += 0.03;
+      if (h.jumpProgress >= 1) {
+        h.jumping = false;
+        h.jumpTimer = h.jumpInterval;
+        h.jumpProgress = 0;
+      } else {
+        // Check collision with player during jump
+        let fishArc = Math.sin(h.jumpProgress * Math.PI);
+        let fishY = h.baseY - fishArc * h.jumpHeight;
+        let fishX = h.x + h.facing * h.jumpProgress * 2 * TILE;
+        let fishRect = { x: fishX - 8, y: fishY - 8, w: 16, h: 16 };
+        if (rectOverlap(player, fishRect) && player.invincible <= 0 && !player.dodging) {
+          player.hp--;
+          damageTaken = true;
+          player.invincible = 45;
+          player.vy = -5;
+          playerDamageFlash = 8;
+          playSound('hurt');
+          spawnParticles(fishX, fishY, '#4488aa', 8, 4);
+        }
+      }
+    }
+  }
+
   // --- Barrel ride ---
   for (const h of hazards) {
     if (h.type !== 'barrel_ride') continue;
@@ -7237,6 +7257,59 @@ function drawTile(t) {
     ctx.fillStyle = '#5a4a2a';
     ctx.fillRect(sx + 2, sy + 2, 8, 2);
     ctx.fillRect(sx + 22, sy + 10, 6, 2);
+  } else if (t.type === 'cave_floor') {
+    // Dark bark/root floor — inside hollow tree
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    // Bark texture lines
+    ctx.fillStyle = '#3a2a18';
+    ctx.fillRect(sx, sy, TILE, 4);
+    ctx.fillStyle = '#352215';
+    ctx.fillRect(sx + 3, sy + 8, 8, 2);
+    ctx.fillRect(sx + 18, sy + 12, 6, 2);
+    // Root bumps on surface
+    ctx.fillStyle = '#4a3520';
+    ctx.fillRect(sx + 1, sy, 4, 3);
+    ctx.fillRect(sx + 12, sy, 3, 2);
+    ctx.fillRect(sx + 24, sy, 5, 3);
+  } else if (t.type === 'cave_wall') {
+    // Bark wall — vertical wood grain inside tree
+    ctx.fillStyle = '#251508';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    // Vertical bark grain
+    ctx.fillStyle = '#30200f';
+    ctx.fillRect(sx + 4, sy, 3, TILE);
+    ctx.fillRect(sx + 15, sy, 2, TILE);
+    ctx.fillRect(sx + 24, sy, 3, TILE);
+    // Knots
+    ctx.fillStyle = '#3a2a16';
+    ctx.fillRect(sx + 8, sy + 6, 5, 4);
+    ctx.fillRect(sx + 20, sy + 18, 4, 4);
+    // Sap drips
+    ctx.fillStyle = '#443018';
+    ctx.fillRect(sx + 10, sy + 12, 2, 6);
+  } else if (t.type === 'cave_ceiling') {
+    // Bark ceiling with hanging roots
+    ctx.fillStyle = '#1e1008';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    // Bottom edge (bark rim)
+    ctx.fillStyle = '#2a1a0e';
+    ctx.fillRect(sx, sy + TILE - 4, TILE, 4);
+    // Bark texture
+    ctx.fillStyle = '#281810';
+    ctx.fillRect(sx + 5, sy + 4, 7, 2);
+    ctx.fillRect(sx + 20, sy + 10, 5, 2);
+    // Small root nubs hanging down
+    ctx.fillStyle = '#3a2a16';
+    ctx.fillRect(sx + 8, sy + TILE - 2, 2, 4);
+    ctx.fillRect(sx + 22, sy + TILE - 2, 2, 3);
+  } else if (t.type === 'cave_dirt') {
+    // Deep root/soil beneath cave floor
+    ctx.fillStyle = '#1a0e06';
+    ctx.fillRect(sx, sy, TILE, TILE);
+    ctx.fillStyle = '#241408';
+    ctx.fillRect(sx + 6, sy + 5, 4, 3);
+    ctx.fillRect(sx + 18, sy + 14, 5, 3);
   } else if (t.type === 'log') {
     // Skip drawing if collapsed
     if (t.collapsed) return;
@@ -7622,15 +7695,6 @@ function drawBackground() {
     ctx.globalAlpha = progressShift * 0.08;
     ctx.fillStyle = '#2244aa';
     ctx.fillRect(0, 0, BASE_W, BASE_H);
-    ctx.restore();
-    // Distant waterfall mist in background
-    ctx.save();
-    let wfScreenX = COLS * TILE * 0.4 * 0.02 - camera.x * 0.02;
-    ctx.globalAlpha = 0.06 + Math.sin(frameCount * 0.01) * 0.02;
-    ctx.fillStyle = '#aaccee';
-    ctx.fillRect(wfScreenX, BASE_H * 0.3, 40, BASE_H * 0.7);
-    ctx.globalAlpha = 0.03;
-    ctx.fillRect(wfScreenX - 30, BASE_H * 0.5, 100, BASE_H * 0.5);
     ctx.restore();
     ctx.restore();
   } else if (currentLevel === 1) {
@@ -9068,127 +9132,81 @@ function countAliveEnemies() {
   return enemies.filter(e => e.alive).length;
 }
 
-function drawBrazier() {
-  if (!exitPortal) return;
+function drawExitPortal() {
+  if (!exitPortal || exitPortal.hidden) return;
   let sx = exitPortal.x - camera.x;
   let sy = exitPortal.y - camera.y;
   if (sx < -80 || sx > BASE_W + 80) return;
   if (sy < -80 || sy > BASE_H + 80) return;
 
-  let brazierCx = sx + TILE;
-  let brazierCy = sy + TILE;
-  let isActive = countAliveEnemies() === 0;
+  let portalCx = sx + TILE;
+  let portalCy = sy + TILE;
+  let pulse = Math.sin(frameCount * 0.06) * 0.15 + 0.85;
 
   ctx.save();
 
-  // Stone base (trapezoid) - wider at bottom
-  ctx.fillStyle = '#666666';
-  ctx.strokeStyle = '#444444';
-  ctx.lineWidth = 2;
+  // Outer glow
+  ctx.shadowColor = '#44aaff';
+  ctx.shadowBlur = 25;
+  ctx.globalAlpha = 0.3 * pulse;
+  ctx.fillStyle = '#44aaff';
   ctx.beginPath();
-  // Top of trapezoid
-  ctx.moveTo(brazierCx - 10, brazierCy - 4);
-  // Right side
-  ctx.lineTo(brazierCx + 10, brazierCy - 4);
-  // Bottom right
-  ctx.lineTo(brazierCx + 16, brazierCy + 8);
-  // Bottom left
-  ctx.lineTo(brazierCx - 16, brazierCy + 8);
-  ctx.closePath();
+  ctx.ellipse(portalCx, portalCy, 24, 30, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.stroke();
 
-  // Stone rim/edge detail
-  ctx.strokeStyle = '#888888';
-  ctx.lineWidth = 1;
+  // Portal ring
+  ctx.shadowBlur = 15;
+  ctx.globalAlpha = 0.8;
+  ctx.strokeStyle = '#88ccff';
+  ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(brazierCx - 10, brazierCy - 4);
-  ctx.lineTo(brazierCx + 10, brazierCy - 4);
+  ctx.ellipse(portalCx, portalCy, 18, 24, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  if (isActive) {
-    // Active: Golden flames and glow
+  // Inner swirl
+  ctx.globalAlpha = 0.6 * pulse;
+  ctx.fillStyle = '#224488';
+  ctx.beginPath();
+  ctx.ellipse(portalCx, portalCy, 14, 20, 0, 0, Math.PI * 2);
+  ctx.fill();
 
-    // Warm glow around brazier
-    ctx.shadowColor = '#ffaa00';
-    ctx.shadowBlur = 30;
-    ctx.fillStyle = 'rgba(255, 200, 0, 0.4)';
+  // Rotating energy lines
+  for (let i = 0; i < 4; i++) {
+    let angle = frameCount * 0.04 + i * Math.PI / 2;
+    let rx = Math.cos(angle) * 12;
+    let ry = Math.sin(angle) * 16;
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = '#aaddff';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.arc(brazierCx, brazierCy - 2, 28, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.moveTo(portalCx + rx * 0.3, portalCy + ry * 0.3);
+    ctx.lineTo(portalCx + rx, portalCy + ry);
+    ctx.stroke();
+  }
 
-    // Multiple flame shapes with flickering animation
-    let flameFlicker = Math.sin(frameCount * 0.12) * 0.2 + 0.8;
-
-    // Left flame
-    let lFlameX = brazierCx - 6;
-    let lFlameBaseY = brazierCy - 6;
-    let lFlameHeight = 12 * flameFlicker;
-    drawFlame(lFlameX, lFlameBaseY, lFlameHeight, 0.8);
-
-    // Center flame
-    let cFlameX = brazierCx;
-    let cFlameBaseY = brazierCy - 8;
-    let cFlameHeight = 16 * flameFlicker;
-    drawFlame(cFlameX, cFlameBaseY, cFlameHeight, 1.0);
-
-    // Right flame
-    let rFlameX = brazierCx + 6;
-    let rFlameBaseY = brazierCy - 6;
-    let rFlameHeight = 12 * flameFlicker;
-    drawFlame(rFlameX, rFlameBaseY, rFlameHeight, 0.8);
-
-    // Floating embers
-    for (let i = 0; i < 3; i++) {
-      let emberX = brazierCx + Math.sin(frameCount * 0.08 + i * 2) * 20 - 10;
-      let emberY = brazierCy - 20 - Math.sin(frameCount * 0.06 + i * 1.5) * 15 - (i * 8);
-      let emberLife = (Math.sin(frameCount * 0.04 + i) + 1) / 2;
-
-      ctx.fillStyle = `rgba(255, ${180 + emberLife * 75}, 0, ${emberLife * 0.6})`;
-      ctx.beginPath();
-      ctx.arc(emberX, emberY, 2 + emberLife, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  } else {
-    // Inactive: Dark stone, maybe cold embers
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-    ctx.shadowBlur = 5;
-
-    // Cold ember glow (dim)
-    ctx.fillStyle = 'rgba(50, 40, 30, 0.3)';
+  // Sparkle particles
+  for (let i = 0; i < 3; i++) {
+    let sparkAngle = frameCount * 0.03 + i * 2.1;
+    let sparkR = 20 + Math.sin(frameCount * 0.08 + i) * 5;
+    let sparkX = portalCx + Math.cos(sparkAngle) * sparkR;
+    let sparkY = portalCy + Math.sin(sparkAngle) * sparkR * 1.3;
+    ctx.globalAlpha = 0.6 + Math.sin(frameCount * 0.1 + i) * 0.3;
+    ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(brazierCx, brazierCy - 2, 12, 0, Math.PI * 2);
+    ctx.arc(sparkX, sparkY, 1.5, 0, Math.PI * 2);
     ctx.fill();
-
-    // Dark embers inside
-    ctx.fillStyle = '#3a2a1a';
-    for (let i = 0; i < 2; i++) {
-      let emberX = brazierCx - 4 + i * 8;
-      let emberY = brazierCy + 2;
-      ctx.beginPath();
-      ctx.arc(emberX, emberY, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
   ctx.restore();
 
-  // Label - only show when active
-  if (isActive) {
-    ctx.fillStyle = '#ffdd44';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 3;
-    ctx.fillText('FLAME', sx + TILE, exitPortal.y - 15);
-  } else {
-    ctx.fillStyle = '#888888';
-    ctx.font = '11px monospace';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 3;
-    ctx.fillText('Brazier', sx + TILE, exitPortal.y - 15);
-  }
+  // Label
+  ctx.fillStyle = '#88ccff';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowBlur = 3;
+  ctx.fillText('PORTAL', portalCx, sy - 8);
+  ctx.shadowBlur = 0;
 }
 
 function drawFlame(baseX, baseY, height, intensity) {
@@ -9491,74 +9509,7 @@ function drawLevelAmbientEffects() {
     }
   }
 
-  // Level 2: Waterfall spray mist, fish jumps, and rainbow
-  if (currentLevel === 2) {
-    let waterSurfY = GROUND_Y * TILE;
-
-    // Draw waterfall mists
-    for (let mist of waterfallMists) {
-      let mistX = mist.x - camera.x;
-      if (mistX < -100 || mistX > BASE_W + 100) continue;
-
-      ctx.save();
-      ctx.globalAlpha = 0.15;
-      ctx.fillStyle = '#ffffff';
-      for (let p of mist.particles) {
-        let px = mistX + p.x;
-        let py = mist.y + p.y;
-        ctx.beginPath();
-        ctx.arc(px, py, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.restore();
-    }
-
-    // Draw fish jumps
-    for (let fish of fishJumps) {
-      if (!fish.active) continue;
-      let fishX = fish.x - camera.x;
-      if (fishX < -50 || fishX > BASE_W + 50) continue;
-
-      let jumpProgress = (fish.phase % 30) / 30;
-      let jumpArc = Math.sin(jumpProgress * Math.PI) * 40;
-
-      ctx.save();
-      ctx.fillStyle = '#4488aa';
-      ctx.globalAlpha = 0.6;
-      ctx.translate(fishX, waterSurfY - jumpArc);
-      ctx.rotate(-jumpProgress * Math.PI * 0.5);
-      ctx.beginPath();
-      ctx.moveTo(8, 0);
-      ctx.quadraticCurveTo(0, -4, -8, 0);
-      ctx.quadraticCurveTo(0, 4, 8, 0);
-      ctx.fill();
-      // Tail
-      ctx.beginPath();
-      ctx.moveTo(-8, 0);
-      ctx.lineTo(-14, -4);
-      ctx.lineTo(-14, 4);
-      ctx.fill();
-      ctx.restore();
-    }
-
-    // Draw rainbow arc near waterfall
-    if (rainbowDecoration) {
-      let rainbowX = rainbowDecoration.x - camera.x;
-      let rainbowY = rainbowDecoration.y;
-
-      ctx.save();
-      let colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#9400d3'];
-      for (let i = 6; i >= 0; i--) {
-        ctx.globalAlpha = 0.08;
-        ctx.strokeStyle = colors[i];
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.arc(rainbowX, rainbowY, 20 + i * 4, Math.PI, 0);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  }
+  // (Waterfall mist/fish/rainbow removed)
 
   // Level 3: Butterflies and blooming flowers
   if (currentLevel === 3) {
@@ -10412,91 +10363,7 @@ function draw() {
     }
   }
 
-  // Waterfall curtain secrets (drawn in front of player to hide the alcove)
-  for (const d of decorations) {
-    if (d.type !== 'waterfall_curtain') continue;
-    let dx = d.x - camera.x;
-    if (dx < -100 || dx > BASE_W + 100) continue;
-    let streamCount = d.isBossWaterfall ? 6 : 4;
-    let streamWidth = d.isBossWaterfall ? 16 : 14;
-    ctx.save();
-    // Waterfall streams - thick, flowing water
-    for (let s = 0; s < streamCount; s++) {
-      let sx = dx + s * streamWidth + Math.sin(frameCount * 0.08 + s * 1.5 + d.phase) * 3;
-      // Main water stream - thick blue
-      ctx.globalAlpha = 0.7 + Math.sin(frameCount * 0.06 + s) * 0.15;
-      ctx.fillStyle = '#4488cc';
-      ctx.fillRect(sx, d.y, 12, d.h);
-      // Lighter water highlight on right side
-      ctx.globalAlpha = 0.55;
-      ctx.fillStyle = '#88bbee';
-      ctx.fillRect(sx + 3, d.y, 4, d.h);
-      // White foam on edges
-      ctx.globalAlpha = 0.35 + Math.sin(frameCount * 0.1 + s) * 0.2;
-      ctx.fillStyle = '#eeffff';
-      ctx.fillRect(sx + 8, d.y, 3, d.h);
-    }
-    // Dense mist at base (foam effect)
-    let mistSize = d.isBossWaterfall ? 45 : 30;
-    ctx.globalAlpha = 0.45 + Math.sin(frameCount * 0.04 + d.phase) * 0.15;
-    ctx.fillStyle = '#aaccee';
-    ctx.beginPath();
-    ctx.arc(dx + TILE, d.y + d.h, mistSize, 0, Math.PI * 2);
-    ctx.fill();
-    // Secondary splash mist
-    ctx.globalAlpha = 0.25;
-    ctx.fillStyle = '#88bbdd';
-    ctx.beginPath();
-    ctx.arc(dx + TILE - 20, d.y + d.h - 10, 20, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(dx + TILE + 20, d.y + d.h - 10, 20, 0, Math.PI * 2);
-    ctx.fill();
-    // Boss waterfall: glowing red eyes peering through + periodic ground shake hint
-    if (d.isBossWaterfall) {
-      // Check if knight is alive
-      let knightAlive = enemies.some(e => e.type === 'knight' && e.alive);
-      if (knightAlive) {
-        // Red eyes flicker behind the water
-        let eyeFlicker = Math.sin(frameCount * 0.08) > 0.3;
-        if (eyeFlicker) {
-          ctx.globalAlpha = 0.25 + Math.sin(frameCount * 0.1) * 0.1;
-          ctx.fillStyle = '#ff2222';
-          let eyeY = d.y + d.h * 0.55;
-          ctx.beginPath();
-          ctx.arc(dx + TILE * 1.2, eyeY, 3, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.beginPath();
-          ctx.arc(dx + TILE * 1.8, eyeY, 3, 0, Math.PI * 2);
-          ctx.fill();
-          // Eye glow halo
-          ctx.globalAlpha = 0.08;
-          ctx.beginPath();
-          ctx.arc(dx + TILE * 1.5, eyeY, 15, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        // Occasional armor glint
-        if (frameCount % 90 < 5) {
-          ctx.globalAlpha = 0.15;
-          ctx.fillStyle = '#ccccdd';
-          ctx.fillRect(dx + TILE * 1.3, d.y + d.h * 0.5, 12, 3);
-        }
-      }
-    }
-    // Splash particles at base
-    if (frameCount % 12 === 0) {
-      particles.push({
-        x: d.x + Math.random() * TILE * 2,
-        y: d.y + d.h,
-        vx: (Math.random() - 0.5) * 1.5,
-        vy: -1 - Math.random() * 1.5,
-        life: 10 + Math.random() * 8,
-        color: '#88ccee',
-        size: 2 + Math.random() * 2,
-      });
-    }
-    ctx.restore();
-  }
+  // (Waterfall curtains removed)
 
   // Boss indicator — sword scratches and warning signs near boss waterfall
   for (const d of decorations) {
@@ -10638,6 +10505,48 @@ function draw() {
     ctx.restore();
   }
 
+  // Jumping fish hazards
+  for (const h of hazards) {
+    if (h.type !== 'jumping_fish' || !h.jumping) continue;
+    let fishArc = Math.sin(h.jumpProgress * Math.PI);
+    let fishY = h.baseY - fishArc * h.jumpHeight;
+    let fishX = h.x + h.facing * h.jumpProgress * 2 * TILE - camera.x;
+    if (fishX < -50 || fishX > BASE_W + 50) continue;
+    ctx.save();
+    ctx.translate(fishX, fishY);
+    ctx.rotate(-h.facing * (h.jumpProgress - 0.5) * Math.PI * 0.6);
+    // Fish body
+    ctx.fillStyle = '#5599bb';
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(10 * h.facing, 0);
+    ctx.quadraticCurveTo(0, -5, -10 * h.facing, 0);
+    ctx.quadraticCurveTo(0, 5, 10 * h.facing, 0);
+    ctx.fill();
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(-10 * h.facing, 0);
+    ctx.lineTo(-16 * h.facing, -5);
+    ctx.lineTo(-16 * h.facing, 5);
+    ctx.fill();
+    // Eye
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(5 * h.facing, -2, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Splash at base when emerging
+    if (h.jumpProgress < 0.15) {
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#88ccee';
+      for (let s = 0; s < 3; s++) {
+        ctx.beginPath();
+        ctx.arc((Math.random() - 0.5) * 20, fishArc * h.jumpHeight, 2 + Math.random() * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   // Collectibles with BATCH 5 visual effects
   for (const c of collectibles) {
     if (!c.alive) continue;
@@ -10688,7 +10597,7 @@ function draw() {
   drawCollectibleEffects();
 
   // Sanctuary Flame (Brazier)
-  drawBrazier();
+  drawExitPortal();
 
   // Dead enemy animations (ragdoll tumble)
   // Batch 2 visual effects - draw before dead enemies
