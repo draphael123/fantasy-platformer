@@ -352,6 +352,22 @@ const LEVELS = [
 let gameState = 'menu'; // menu | levelselect | playing | paused | dead | win | levelcomplete
 let score = 0;
 let camera = { x: 0, y: 0 };
+
+// ============================================================
+// BATCH 2: COMBAT VISUAL EFFECTS - Global Variables
+// ============================================================
+let hitSparks = [];
+let dyingEnemies_batch2 = [];
+let damageNumbers = [];
+let screenShake = {
+  x: 0,
+  y: 0,
+  intensity: 0,
+  decayRate: 0.9,
+};
+let alertIndicators = [];
+let hitSplatters = [];
+let bossEntranceCard = null;
 let particles = [];
 let shakeTimer = 0;
 let frameCount = 0;
@@ -367,10 +383,60 @@ let respawnFlash = 0; // white flash on respawn
 let totalGems = 0; // total gems in level
 let collectedGems = 0; // gems collected so far
 let currentLevel = 1;
+let playerVisualEffects = []; // Array for all player visual effects (dust, slash, etc.)
+let playerDamageFlash = 0; // Frames remaining for red damage tint
+let dodgeRollAfterimages = []; // Array for dodge roll trailing images
+let lastPlayerPositions = []; // Track last 3 player positions for dodge afterimage
 const MAX_LEVEL = 5;
 let projectiles = []; // { x, y, vx, vy, w, h, type, life }
 let levelTimer = 0; // frame counter for level completion time
 let damageTaken = false; // tracks if player took any damage this level
+
+// ===== BATCH 4: UI/HUD IMPROVEMENTS =====
+// 1. ANIMATED HEART CONTAINERS
+let heartPulsePhase = 0;
+let lastHeartCount = 0;
+let heartLossTimer = 0;
+
+// 2. GEM COUNTER SPARKLE EFFECT
+let gemSparkles = [];
+
+// 3. SCORE POPUP WITH COMBO MULTIPLIER
+let lastKillTime = 0;
+let comboMultiplier = 1;
+let comboTimeout = 120;
+
+// 4. LEVEL TITLE CARD
+let levelTitleCard = {
+  active: false,
+  timer: 0,
+  duration: 60,
+  fadeOutDuration: 30,
+  title: '',
+  subtitle: ''
+};
+
+// ===== BATCH 5: COLLECTIBLE VISUAL EFFECTS =====
+// Gem sparkles around collectibles
+let gemSparkleEffects = []; // { x, y, life, maxLife, size }
+// Health glow effects
+let healthGlows = []; // { x, y, radius, maxRadius, alpha }
+// Collection burst particles
+let collectionBursts = []; // { x, y, angle, vx, vy, life, maxLife, color, size }
+
+// 6. PROGRESS BAR
+let maxLevelWidth = 0;
+
+// 7. POTION COOLDOWN ANIMATION
+let potionCooldowns = {};
+let maxPotionCooldown = 300;
+
+// 8. XP BAR GLOW SWEEP
+let xpGlowSweep = {
+  active: false,
+  timer: 0,
+  duration: 20
+};
 
 // --- Save System (realmOfTheFallen_save) ---
 function saveProgress() {
@@ -409,6 +475,36 @@ let splashes = []; // { x, y, vy, spread, alpha }
 let grassSwirls = []; // { x, y, alpha, angle }
 let weatherParticles = []; // Ambient weather particles
 let screenFlash = { alpha: 0, color: '#fff' }; // Screen flash effect
+let dustMotes = []; // Dust particles in light beams { x, y, vx, vy, life, maxLife, size }
+let waterRipples = []; // Water ripples { x, y, life, maxLife, radius }
+let torchLights = []; // Torch/lantern light sources { x, y, color, pulsePhase }
+let foamParticles = []; // Water foam { x, y, life, maxLife, bobPhase }
+
+// ---- LEVEL-SPECIFIC AMBIENT EFFECTS ----
+// Level 1 - Dark Forest
+let owlEyes = []; // { x, y, phase, blinkTimer } - glowing owl eyes in dark canopies
+let wolfHowlVignette = 0; // alpha for vignette effect
+let wolfHowlTimer = 0; // timer for wolf howl cycles
+
+// Level 2 - Waterfall Pass
+let waterfallMists = []; // { x, y, particles: [] } - spray mist near waterfalls
+let fishJumps = []; // { x, y, active, phase } - fish jump locations
+let rainbowDecoration = null; // { x, y, opacity } - rainbow arc near waterfall
+
+// Level 3 - Thornwood Canopy
+let butterflies = []; // { x, y, vx, vy, phase, scattered, scatterTimer } - fluttering butterflies
+let bloomingFlowers = []; // { x, y, bloomTimer, bloomAmount, bloomed } - flowers with animation
+
+// Level 4 - The Hollow Root
+let drippingStalactites = []; // { x, y, dropTimer } - stalactites that drip water
+let glowingMushrooms = []; // { x, y, glowPhase } - bioluminescent mushrooms
+let caveEchoRipples = []; // { x, y, life, maxLife, radius } - echo ripples from attacks
+
+// Level 5 - The Goblin Throne
+let throneRoomTorches = []; // { x, y, flamePhase } - animated torch decorations
+let groundFog = []; // { x, y, phase } - low-lying fog particles
+let crumblingDebris = []; // { x, y, vx, vy, life, maxLife } - falling ceiling chunks
+
 for (let i = 0; i < 5; i++) bgBirds.push({ x: Math.random() * 1200, y: 30 + Math.random() * 60, vx: 0.3 + Math.random() * 0.5, phase: Math.random() * Math.PI * 2, size: 2 + Math.random() * 2 });
 
 // ---- NEW VISUAL FEATURES (BATCH 4-5) ----
@@ -445,6 +541,730 @@ function getStyleRank(meter) {
   if (meter >= 25) return { rank: 'B', color: '#ffffff', glow: false };
   return { rank: 'C', color: '#888888', glow: false };
 }
+
+// ============================================================================
+// BATCH 6: TRANSITIONS & POLISH EFFECTS
+// ============================================================================
+const screenFade = {
+  alpha: 0,           // 0 = transparent, 1 = fully opaque
+  direction: 'none',  // 'out' (to black), 'in' (from black), 'none'
+  speed: 0,           // alpha change per frame
+  callback: null,     // function to call when fade completes
+  active: false,
+
+  /**
+   * Start a fade transition
+   * @param {string} dir - 'out' (to black over 30 frames) or 'in' (from black over 30 frames)
+   * @param {number} frames - duration in frames (default 30)
+   * @param {function} cb - optional callback when fade completes
+   */
+  startFade(dir, frames = 30, cb = null) {
+    this.direction = dir;
+    this.speed = 1 / frames;
+    this.callback = cb;
+    this.active = true;
+
+    if (dir === 'out') {
+      this.alpha = 0;
+    } else if (dir === 'in') {
+      this.alpha = 1;
+    }
+  },
+
+  /**
+   * Update fade state (call once per frame in the main game loop)
+   */
+  update() {
+    if (!this.active) return;
+
+    if (this.direction === 'out') {
+      this.alpha += this.speed;
+      if (this.alpha >= 1) {
+        this.alpha = 1;
+        this.active = false;
+        if (this.callback) this.callback();
+      }
+    } else if (this.direction === 'in') {
+      this.alpha -= this.speed;
+      if (this.alpha <= 0) {
+        this.alpha = 0;
+        this.active = false;
+        if (this.callback) this.callback();
+      }
+    }
+  },
+
+  /**
+   * Draw the fade overlay (call LAST in the draw function, after all game elements)
+   * This ensures the fade appears on top of everything
+   */
+  draw(ctx, canvasWidth, canvasHeight) {
+    if (this.alpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = this.alpha;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+      ctx.restore();
+    }
+  }
+};
+
+const deathAnimation = {
+  active: false,
+  frameCount: 0,
+  maxFrames: 90,           // Total duration of death animation
+  crumbleFrames: 20,       // Duration of player crumble effect
+  desaturateSpeed: 0.015,  // How fast the screen desaturates
+  desaturation: 0,         // 0 = normal, 1 = full grayscale
+  debrisParticles: [],     // Array of falling debris from the crumbling player
+
+  /**
+   * Start the death animation sequence
+   * Call this when player.hp <= 0 && gameState === 'playing'
+   */
+  start() {
+    this.active = true;
+    this.frameCount = 0;
+    this.desaturation = 0;
+    this.debrisParticles = [];
+
+    // Spawn initial debris particles (fragments of the player crumbling)
+    for (let i = 0; i < 12; i++) {
+      const angle = (Math.PI * 2 / 12) * i;
+      const speed = 1.5 + Math.random() * 1.5;
+      this.debrisParticles.push({
+        x: player.x + player.w / 2,
+        y: player.y + player.h / 2,
+        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 0.5,
+        vy: -2 + Math.random() * 1,  // Upward initially
+        gravity: 0.15,
+        size: 2 + Math.random() * 3,
+        alpha: 1,
+        life: 60,
+        maxLife: 60,
+        color: '#8B4513'  // Brown earth tone
+      });
+    }
+  },
+
+  /**
+   * Update death animation (call once per frame when this.active)
+   */
+  update() {
+    if (!this.active) return;
+
+    this.frameCount++;
+
+    // Update desaturation (increases over 90 frames)
+    this.desaturation = Math.min(this.desaturation + this.desaturateSpeed, 0.8);
+
+    // Update debris particles (gravity, velocity, fade)
+    for (let i = this.debrisParticles.length - 1; i >= 0; i--) {
+      const p = this.debrisParticles[i];
+      p.vy += p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+      p.alpha = (p.life / p.maxLife) * 0.8;
+
+      if (p.life <= 0) {
+        this.debrisParticles.splice(i, 1);
+      }
+    }
+
+    // Check if animation is complete
+    if (this.frameCount >= this.maxFrames) {
+      this.active = false;
+      // Trigger game over / respawn screen
+      // This should transition to the death screen UI
+    }
+  },
+
+  /**
+   * Draw death animation overlay and effects
+   * Call this in the draw function when deathAnimation.active
+   */
+  draw(ctx, baseW, baseH) {
+    if (!this.active) return;
+
+    // Player shrink effect (crumble down to 50% height over 20 frames)
+    const shrinkProgress = Math.min(this.frameCount / this.crumbleFrames, 1);
+    if (shrinkProgress < 1) {
+      // Draw shrinking player (optional: replaced by debris)
+      ctx.save();
+      ctx.globalAlpha = 1 - shrinkProgress;
+      ctx.fillStyle = '#d4af37';  // Gold-ish player color
+      const shrinkScale = 1 - (shrinkProgress * 0.5);  // Shrink to 50%
+      ctx.fillRect(
+        player.x - camera.x + player.w / 2 - (player.w / 2) * shrinkScale,
+        player.y - camera.y + (player.h * (1 - shrinkScale)),
+        player.w * shrinkScale,
+        player.h * shrinkScale
+      );
+      ctx.restore();
+    }
+
+    // Draw debris particles
+    for (const p of this.debrisParticles) {
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - camera.x, p.y - camera.y, p.size, p.size);
+      ctx.restore();
+    }
+
+    // Draw full-screen desaturation overlay (grayscale effect)
+    if (this.desaturation > 0) {
+      ctx.save();
+      ctx.globalAlpha = this.desaturation;
+      // Create grayscale overlay using a gray rectangle
+      ctx.fillStyle = '#808080';
+      ctx.fillRect(0, 0, baseW, baseH);
+      ctx.restore();
+    }
+
+    // Draw "You Fell..." text (fades in after 20 frames, centered, red fantasy font)
+    const textStartFrame = 20;
+    if (this.frameCount > textStartFrame) {
+      const textProgress = Math.min((this.frameCount - textStartFrame) / 30, 1);
+      ctx.save();
+      ctx.globalAlpha = textProgress;
+      ctx.fillStyle = '#ff3333';
+      ctx.font = 'bold 64px serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Add subtle shadow for depth
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillText('You Fell...', baseW / 2 + 2, baseH / 2 + 2);
+      // Main text in red
+      ctx.fillStyle = '#ff3333';
+      ctx.fillText('You Fell...', baseW / 2, baseH / 2);
+      ctx.restore();
+    }
+  }
+};
+
+const levelCelebration = {
+  active: false,
+  frameCount: 0,
+  maxFrames: 120,
+  fireworkParticles: [],  // All particles from all bursts
+  bursts: [               // Burst schedule
+    { frame: 0,   x: null, y: null },  // First burst at sanctuary (will be set)
+    { frame: 40,  x: null, y: null },  // Secondary burst (random pos)
+    { frame: 75,  x: null, y: null }   // Tertiary burst (random pos)
+  ],
+  sanctuaryX: 0,
+  sanctuaryY: 0,
+  screenFlashAlpha: 0,
+
+  /**
+   * Start celebration when player reaches the sanctuary flame
+   * @param {number} x - sanctuary flame x position
+   * @param {number} y - sanctuary flame y position
+   */
+  start(x, y) {
+    this.active = true;
+    this.frameCount = 0;
+    this.fireworkParticles = [];
+    this.screenFlashAlpha = 0;
+    this.sanctuaryX = x;
+    this.sanctuaryY = y;
+
+    // Set burst positions
+    this.bursts[0].x = x;
+    this.bursts[0].y = y;
+    // Random positions for secondary bursts
+    this.bursts[1].x = Math.random() * BASE_W * 0.6 + BASE_W * 0.2;
+    this.bursts[1].y = Math.random() * BASE_H * 0.4 + BASE_H * 0.1;
+    this.bursts[2].x = Math.random() * BASE_W * 0.6 + BASE_W * 0.2;
+    this.bursts[2].y = Math.random() * BASE_H * 0.4 + BASE_H * 0.1;
+
+    // Start first burst immediately
+    this.createBurst(this.bursts[0].x, this.bursts[0].y);
+  },
+
+  /**
+   * Create a single firework burst with 30-40 particles
+   * @param {number} x - world x position
+   * @param {number} y - world y position
+   */
+  createBurst(x, y) {
+    const particleCount = 30 + Math.floor(Math.random() * 10);
+    const colors = ['#FFD700', '#FFA500', '#FF8C00', '#FFD700', '#FFED4E'];
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (Math.PI * 2 / particleCount) * i + (Math.random() - 0.5) * 0.5;
+      const speed = 2 + Math.random() * 3;
+      const life = 40 + Math.random() * 30;
+
+      this.fireworkParticles.push({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 1,  // Slight upward bias
+        gravity: 0.1,
+        size: 2 + Math.random() * 2,
+        alpha: 1,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: life,
+        maxLife: life,
+        trailAlpha: 0.6,
+        trailLength: 8
+      });
+    }
+
+    // Screen flash (brief gold flash)
+    this.screenFlashAlpha = 0.15;
+  },
+
+  /**
+   * Update celebration state (call once per frame when active)
+   */
+  update() {
+    if (!this.active) return;
+
+    this.frameCount++;
+
+    // Check for scheduled bursts
+    for (const burst of this.bursts) {
+      if (this.frameCount === burst.frame && burst.frame > 0) {
+        this.createBurst(burst.x, burst.y);
+      }
+    }
+
+    // Update all particles
+    for (let i = this.fireworkParticles.length - 1; i >= 0; i--) {
+      const p = this.fireworkParticles[i];
+
+      p.vy += p.gravity;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life--;
+
+      // Fade out as they die
+      p.alpha = p.life / p.maxLife;
+
+      if (p.life <= 0) {
+        this.fireworkParticles.splice(i, 1);
+      }
+    }
+
+    // Fade out screen flash
+    this.screenFlashAlpha = Math.max(0, this.screenFlashAlpha - 0.015);
+
+    // End celebration after max frames
+    if (this.frameCount >= this.maxFrames) {
+      this.active = false;
+    }
+  },
+
+  /**
+   * Draw celebration effects
+   * Call this in the draw function when levelCelebration.active
+   */
+  draw(ctx, baseW, baseH, cameraX, cameraY) {
+    if (!this.active) return;
+
+    // Draw particles with trails
+    for (const p of this.fireworkParticles) {
+      const screenX = p.x - cameraX;
+      const screenY = p.y - cameraY;
+
+      // Draw particle trail (fading line behind particle)
+      if (Math.hypot(p.vx, p.vy) > 0.1) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha * p.trailAlpha * 0.4;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(screenX, screenY);
+        ctx.lineTo(screenX - p.vx * p.trailLength, screenY - p.vy * p.trailLength);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Draw particle
+      ctx.save();
+      ctx.globalAlpha = p.alpha;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, p.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw screen flash (gold tint)
+    if (this.screenFlashAlpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = this.screenFlashAlpha;
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(0, 0, baseW, baseH);
+      ctx.restore();
+    }
+  }
+};
+
+const menuBackground = {
+  scrollOffset: 0,
+  scrollSpeed: 0.15,
+  particleRain: [],
+  moonGlow: { x: 0, y: 0, glowAlpha: 0.3, size: 40 },
+
+  /**
+   * Initialize menu background (call once at startup or when showing menu)
+   */
+  init() {
+    this.scrollOffset = 0;
+    this.particleRain = [];
+    this.moonGlow = { x: 850, y: 60, glowAlpha: 0.3, size: 40 };
+
+    // Spawn initial rain/ember particles
+    for (let i = 0; i < 20; i++) {
+      this.particleRain.push({
+        x: Math.random() * BASE_W,
+        y: Math.random() * BASE_H,
+        vx: -0.3,  // Slight leftward drift
+        vy: 0.5 + Math.random() * 0.3,  // Fall down
+        life: Math.random() * 200,  // Staggered lifetimes
+        maxLife: 200,
+        size: 0.5 + Math.random() * 1,
+        type: Math.random() > 0.6 ? 'ember' : 'rain',  // Mostly rain
+        alpha: 0.4
+      });
+    }
+  },
+
+  /**
+   * Update menu background (call once per frame in menu state)
+   */
+  update() {
+    this.scrollOffset -= this.scrollSpeed;
+    if (this.scrollOffset < -300) this.scrollOffset += 300;
+
+    // Update rain/ember particles
+    for (let i = 0; i < this.particleRain.length; i++) {
+      const p = this.particleRain[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.life++;
+
+      // Respawn at top when falling off
+      if (p.y > BASE_H) {
+        p.y = -10;
+        p.x = Math.random() * BASE_W;
+        p.life = 0;
+      }
+    }
+
+    // Gentle moon glow pulse
+    this.moonGlow.glowAlpha = 0.25 + Math.sin(Date.now() * 0.0005) * 0.08;
+  },
+
+  /**
+   * Draw menu background (call early in draw when gameState === 'menu')
+   */
+  draw(ctx, baseW, baseH) {
+    // Dark background gradient (night sky)
+    const grad = ctx.createLinearGradient(0, 0, 0, baseH);
+    grad.addColorStop(0, '#1a0f2e');      // Deep purple top
+    grad.addColorStop(0.5, '#2d1b4e');    // Medium purple
+    grad.addColorStop(1, '#1a3a3a');      // Dark teal bottom
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, baseW, baseH);
+
+    // Distant mountains (parallax layer 1 - slowest)
+    ctx.save();
+    ctx.fillStyle = '#0d1820';
+    ctx.beginPath();
+    ctx.moveTo(-200 + this.scrollOffset * 0.05, baseH * 0.6);
+    ctx.lineTo(50 + this.scrollOffset * 0.05, baseH * 0.4);
+    ctx.lineTo(200 + this.scrollOffset * 0.05, baseH * 0.5);
+    ctx.lineTo(400 + this.scrollOffset * 0.05, baseH * 0.35);
+    ctx.lineTo(600 + this.scrollOffset * 0.05, baseH * 0.5);
+    ctx.lineTo(800 + this.scrollOffset * 0.05, baseH * 0.4);
+    ctx.lineTo(1200 + this.scrollOffset * 0.05, baseH * 0.6);
+    ctx.lineTo(1200 + this.scrollOffset * 0.05, baseH);
+    ctx.lineTo(-200 + this.scrollOffset * 0.05, baseH);
+    ctx.fill();
+    ctx.restore();
+
+    // Forest silhouette trees (parallax layer 2 - medium)
+    ctx.save();
+    ctx.fillStyle = '#0a2e2e';
+    for (let i = -1; i < 4; i++) {
+      const treeX = i * 280 + this.scrollOffset * 0.3;
+      // Pine tree shape
+      ctx.beginPath();
+      ctx.moveTo(treeX, baseH * 0.55);
+      ctx.lineTo(treeX - 20, baseH * 0.7);
+      ctx.lineTo(treeX - 15, baseH * 0.68);
+      ctx.lineTo(treeX - 35, baseH * 0.82);
+      ctx.lineTo(treeX - 25, baseH * 0.8);
+      ctx.lineTo(treeX - 45, baseH * 0.95);
+      ctx.lineTo(treeX + 45, baseH * 0.95);
+      ctx.lineTo(treeX + 25, baseH * 0.8);
+      ctx.lineTo(treeX + 35, baseH * 0.82);
+      ctx.lineTo(treeX + 15, baseH * 0.68);
+      ctx.lineTo(treeX + 20, baseH * 0.7);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Foreground forest silhouette (parallax layer 3 - fastest)
+    ctx.save();
+    ctx.fillStyle = '#051818';
+    for (let i = -1; i < 5; i++) {
+      const treeX = i * 200 + this.scrollOffset * 0.6;
+      // Shorter, denser trees in foreground
+      ctx.beginPath();
+      ctx.moveTo(treeX, baseH * 0.75);
+      ctx.lineTo(treeX - 15, baseH * 0.85);
+      ctx.lineTo(treeX - 10, baseH * 0.83);
+      ctx.lineTo(treeX - 25, baseH * 0.95);
+      ctx.lineTo(treeX + 25, baseH * 0.95);
+      ctx.lineTo(treeX + 10, baseH * 0.83);
+      ctx.lineTo(treeX + 15, baseH * 0.85);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Rain/ember particles
+    for (const p of this.particleRain) {
+      ctx.save();
+      ctx.globalAlpha = p.alpha * (1 - p.life / p.maxLife);
+      if (p.type === 'rain') {
+        ctx.strokeStyle = '#8899bb';
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - 1, p.y + 4);
+        ctx.stroke();
+      } else {
+        // Ember glow
+        ctx.fillStyle = '#ff9944';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = p.alpha * 0.5 * (1 - p.life / p.maxLife);
+        ctx.fillStyle = '#ffbb66';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Moon in upper right with glow
+    ctx.save();
+    // Outer glow
+    ctx.globalAlpha = this.moonGlow.glowAlpha * 0.3;
+    ctx.fillStyle = '#ffbb00';
+    ctx.beginPath();
+    ctx.arc(this.moonGlow.x, this.moonGlow.y, this.moonGlow.size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner glow
+    ctx.globalAlpha = this.moonGlow.glowAlpha * 0.6;
+    ctx.fillStyle = '#ffdd44';
+    ctx.beginPath();
+    ctx.arc(this.moonGlow.x, this.moonGlow.y, this.moonGlow.size * 1.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Moon disk
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffee';
+    ctx.beginPath();
+    ctx.arc(this.moonGlow.x, this.moonGlow.y, this.moonGlow.size, 0, Math.PI * 2);
+    ctx.fill();
+    // Moon craters
+    ctx.fillStyle = '#ccccaa';
+    ctx.beginPath();
+    ctx.arc(this.moonGlow.x - 8, this.moonGlow.y - 6, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(this.moonGlow.x + 10, this.moonGlow.y + 8, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+};
+
+const buttonHover = {
+  menuButtons: [],      // Tracking all menu buttons
+  mousePos: { x: 0, y: 0 },
+  hoveredButton: null,
+
+  /**
+   * Initialize button hover tracking
+   * Call once at startup to attach listeners
+   */
+  init() {
+    // Track mouse position
+    document.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      this.mousePos.x = e.clientX - rect.left;
+      this.mousePos.y = e.clientY - rect.top;
+    });
+
+    // Register menu buttons for hover detection
+    const menuButtonSelectors = [
+      '#playBtn', '#levelSelectBtn', '#statsBtn',
+      '#retryBtn', '#nextLevelBtn',
+      '.menu-btn', '.overlay-btn'
+    ];
+
+    menuButtonSelectors.forEach(selector => {
+      document.querySelectorAll(selector).forEach(btn => {
+        if (!btn._hoverData) {
+          btn._hoverData = {
+            scale: 1.0,
+            targetScale: 1.0,
+            glowAlpha: 0,
+            targetGlowAlpha: 0
+          };
+        }
+        this.menuButtons.push(btn);
+      });
+    });
+  },
+
+  /**
+   * Update button hover states (call once per frame)
+   */
+  update() {
+    // Update scale and glow for all registered buttons
+    for (const btn of this.menuButtons) {
+      if (!btn._hoverData) continue;
+
+      const data = btn._hoverData;
+
+      // Smooth lerp scale
+      data.scale += (data.targetScale - data.scale) * 0.15;
+
+      // Smooth lerp glow
+      data.glowAlpha += (data.targetGlowAlpha - data.glowAlpha) * 0.2;
+
+      // Apply scale transform
+      btn.style.transform = `scale(${data.scale})`;
+
+      // Apply glow as box-shadow (optional: could also use filter: brightness)
+      if (data.glowAlpha > 0) {
+        const glowColor = `rgba(255, 200, 80, ${data.glowAlpha * 0.5})`;
+        btn.style.boxShadow = `0 0 ${10 * data.glowAlpha} ${glowColor}`;
+      } else {
+        btn.style.boxShadow = '';
+      }
+    }
+  },
+
+  /**
+   * Check if a button is hovered (mouse-based detection)
+   * @param {HTMLElement} btn - button element
+   * @returns {boolean}
+   */
+  isButtonHovered(btn) {
+    if (!btn || !btn.offsetParent) return false;
+
+    const rect = btn.getBoundingClientRect();
+    const canvasRect = canvas.getBoundingClientRect();
+
+    const mouseX = this.mousePos.x + canvasRect.left;
+    const mouseY = this.mousePos.y + canvasRect.top;
+
+    return mouseX >= rect.left && mouseX <= rect.right &&
+           mouseY >= rect.top && mouseY <= rect.bottom;
+  },
+
+  /**
+   * Manually set a button's hover state
+   * @param {HTMLElement} btn - button element
+   * @param {boolean} hovered - true for hover, false for normal
+   */
+  setButtonHovered(btn, hovered) {
+    if (!btn._hoverData) {
+      btn._hoverData = {
+        scale: 1.0,
+        targetScale: 1.0,
+        glowAlpha: 0,
+        targetGlowAlpha: 0
+      };
+    }
+
+    const data = btn._hoverData;
+    data.targetScale = hovered ? 1.08 : 1.0;
+    data.targetGlowAlpha = hovered ? 1.0 : 0;
+  }
+};
+
+const lockedLevelShimmer = {
+  shimmerOffset: 0,
+  shimmerSpeed: 2,
+  shimmerWidth: 60,
+  shimmers: {},  // { levelId: { bobOffset, shimmerPhase } }
+
+  /**
+   * Initialize shimmer state for a locked level card
+   * @param {number} levelId - the level ID
+   */
+  initLevel(levelId) {
+    if (!this.shimmers[levelId]) {
+      this.shimmers[levelId] = {
+        bobOffset: 0,
+        bobSpeed: 0.08,
+        bobAmount: 3,
+        shimmerPhase: 0,
+        shimmerPeriod: 180  // 3 seconds at 60fps
+      };
+    }
+  },
+
+  /**
+   * Update shimmer effects for locked levels (call once per frame)
+   */
+  update() {
+    for (const levelId in this.shimmers) {
+      const shim = this.shimmers[levelId];
+      // Bob the lock icon up and down
+      shim.bobOffset = Math.sin(Date.now() * shim.bobSpeed * 0.001) * shim.bobAmount;
+      // Progress shimmer sweep
+      shim.shimmerPhase = (shim.shimmerPhase + 1) % shim.shimmerPeriod;
+    }
+  },
+
+  /**
+   * Apply shimmer effect to a locked level card
+   * @param {HTMLElement} card - the level card element
+   * @param {number} levelId - the level ID
+   */
+  applyShimmerToCard(card, levelId) {
+    this.initLevel(levelId);
+    const shim = this.shimmers[levelId];
+
+    // Desaturate and darken locked cards
+    card.style.filter = 'brightness(0.6) saturate(0.5)';
+
+    // Optional: Apply CSS shimmer animation using a pseudo-element or background
+    // For simplicity, this can be done via CSS animation on the card itself
+    const shimmerPercent = (shim.shimmerPhase / shim.shimmerPeriod) * 100;
+    card.style.backgroundImage = `linear-gradient(
+      90deg,
+      transparent ${Math.max(0, shimmerPercent - 20)}%,
+      rgba(255, 255, 255, 0.2) ${shimmerPercent}%,
+      transparent ${Math.min(100, shimmerPercent + 20)}%
+    )`;
+  },
+
+  /**
+   * Apply bob effect to lock icon
+   * @param {HTMLElement} lockIcon - the lock icon element
+   * @param {number} levelId - the level ID
+   */
+  applyBobToLockIcon(lockIcon, levelId) {
+    this.initLevel(levelId);
+    const shim = this.shimmers[levelId];
+
+    lockIcon.style.transform = `translateY(${shim.bobOffset}px)`;
+    lockIcon.style.transition = 'transform 0.05s ease-out';
+  }
+};
 
 // ---- INPUT ----
 const keys = {};
@@ -1301,6 +2121,22 @@ function generateLevel1() {
     type: 'signpost',
   });
 
+  // --- Owl eyes in tree canopies (Level 1 dark forest mood) ---
+  // Pick 2-3 random tree positions and add glowing eyes in their canopies
+  let selectedTrees = decorations
+    .filter(d => d.type === 'tree')
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3);
+  for (const tree of selectedTrees) {
+    owlEyes.push({
+      x: tree.x + Math.random() * 20 - 10,
+      y: tree.y - Math.random() * 100 - 40,
+      phase: Math.random() * Math.PI * 2,
+      blinkTimer: 120 + Math.floor(Math.random() * 60),
+      blinkCounter: 0,
+    });
+  }
+
   // --- Rain / wind particles (ambient, screen-space — stored as a count, drawn in draw()) ---
   // No decoration needed — drawn directly in draw() as a weather overlay
 
@@ -1788,11 +2624,57 @@ function generateLevel2() {
   }
 
   // Signpost
+  decorations.push({ x: 4 * TILE, y: groundY * TILE, type: 'signpost' });
+
+  // --- Level 2 Waterfall Effects ---
+  // Initialize waterfall mist, fish jumps, and rainbow near waterfalls
+  // Find all waterfall_curtain decorations
+  let waterfallDecorations = decorations.filter(d => d.type === 'waterfall_curtain');
+
+  // Create mists and effects for each waterfall
+  for (const wf of waterfallDecorations) {
+    // Waterfall spray mist: 10-15 particles per waterfall
+    waterfallMists.push({
+      x: wf.x,
+      y: wf.y,
+      particles: [],
+    });
+    // Initialize mist particles
+    for (let m = 0; m < 12; m++) {
+      waterfallMists[waterfallMists.length - 1].particles.push({
+        x: Math.random() * 40 - 20,
+        y: Math.random() * (wf.h || 80),
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -0.3,
+        life: Math.random() * 60,
+        maxLife: 60 + Math.random() * 30,
+      });
+    }
+
+    // Fish jump spots: 2-3 near each waterfall
+    if (Math.random() < 0.6) {
+      fishJumps.push({
+        x: wf.x + Math.random() * 100 - 50,
+        y: groundY * TILE + 20,
+        active: false,
+        phase: Math.random() * 300,
+      });
+    }
+  }
+
+  // Rainbow decoration near the largest waterfall (the boss waterfall)
+  let bossWf = waterfallDecorations.find(d => d.isBossWaterfall);
+  if (bossWf) {
+    rainbowDecoration = {
+      x: bossWf.x + 20,
+      y: bossWf.y - 60,
+      opacity: 0.08,
+    };
+  }
+
   // Cracked walls with secret rooms (Level 2)
   tiles.push({ x: 100 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
   tiles.push({ x: 250 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
-
-  decorations.push({ x: 4 * TILE, y: groundY * TILE, type: 'signpost' });
 }
 
 function generateLevel3() {
@@ -2121,6 +3003,35 @@ function generateLevel3() {
     y: 0,
     phase: 0,
   });
+
+  // --- Level 3 Butterflies and Blooming Flowers ---
+  // Add 3-5 butterflies that flutter and scatter when player gets close
+  for (let i = 0; i < 4; i++) {
+    let flowerDec = decorations.find(d => d.type === 'pollen' && Math.random() < 0.3);
+    butterflies.push({
+      x: (flowerDec?.x || (i * 300 + Math.random() * 200)),
+      y: 100 + Math.random() * 200,
+      vx: 0,
+      vy: 0,
+      phase: Math.random() * Math.PI * 2,
+      scattered: false,
+      scatterTimer: 0,
+      homeX: flowerDec?.x || (i * 300),
+      homeY: 100 + Math.random() * 200,
+    });
+  }
+
+  // Add 4-6 blooming flowers on the ground in intro section
+  for (let i = 0; i < 5; i++) {
+    bloomingFlowers.push({
+      x: (10 + i * 8) * TILE + Math.random() * 30,
+      y: groundY * TILE - 8,
+      bloomTimer: 0,
+      bloomAmount: 0,
+      bloomed: false,
+      maxBloomTime: 20,
+    });
+  }
 }
 
 function generateLevel4() {
@@ -2361,6 +3272,33 @@ function generateLevel4() {
     });
   }
 
+  // --- Level 4 Dripping Stalactites, Glowing Mushrooms, and Echo Ripples ---
+  // Initialize 5-7 stalactites on the ceiling at random positions
+  for (let i = 0; i < 6; i++) {
+    let stX = (descentStart + i * ((descentEnd - descentStart) / 6)) * TILE + Math.random() * 200;
+    if (stX > LEVEL_W - 100) break;
+    drippingStalactites.push({
+      x: stX,
+      y: -50 + Math.random() * 30,
+      dropTimer: 90 + Math.floor(Math.random() * 90),
+      staggerOffset: i * 15,
+    });
+  }
+
+  // Add 4-5 glowing mushroom decorations if not already present
+  let mushroomCount = decorations.filter(d => d.type === 'mushroom').length;
+  if (mushroomCount < 4) {
+    for (let i = 0; i < 5; i++) {
+      let nearPlat = rootPlatforms[Math.floor(Math.random() * rootPlatforms.length)];
+      if (!nearPlat) continue;
+      glowingMushrooms.push({
+        x: (nearPlat.col + 1) * TILE + Math.random() * 30,
+        y: (nearPlat.row - 1) * TILE,
+        glowPhase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
   // Cracked walls with secret rooms (Level 4)
   tiles.push({ x: 60 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
   tiles.push({ x: 120 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
@@ -2453,6 +3391,41 @@ function generateLevel5() {
   for (let i = 0; i < 6; i++) {
     decorations.push({ type: 'skull_pile', x: (4 + i * Math.floor(COLS / 7)) * TILE, y: groundY * TILE - 8 });
   }
+
+  // --- Level 5 Throne Room Ambient Effects ---
+  // Initialize 4-6 wall torches along arena edges with animated flames
+  throneRoomTorches.push({
+    x: 3 * TILE,
+    y: groundY * TILE - 80,
+    flamePhase: Math.random() * Math.PI * 2,
+  });
+  throneRoomTorches.push({
+    x: (COLS - 4) * TILE,
+    y: groundY * TILE - 80,
+    flamePhase: Math.random() * Math.PI * 2 + Math.PI,
+  });
+  throneRoomTorches.push({
+    x: 3 * TILE,
+    y: (groundY - 4) * TILE - 40,
+    flamePhase: Math.random() * Math.PI * 2 + Math.PI / 2,
+  });
+  throneRoomTorches.push({
+    x: (COLS - 4) * TILE,
+    y: (groundY - 4) * TILE - 40,
+    flamePhase: Math.random() * Math.PI * 2 + Math.PI * 1.5,
+  });
+
+  // Initialize ground fog: ~20 particles in the lower 2 tile rows
+  for (let i = 0; i < 20; i++) {
+    groundFog.push({
+      x: Math.random() * COLS * TILE,
+      y: (groundY - 0.5) * TILE + Math.random() * TILE,
+      phase: Math.random() * Math.PI * 2,
+      driftX: Math.random() * COLS * TILE,
+    });
+  }
+
+  // Note: crumblingDebris is created during boss fight in update()
 }
 
 // ---- PLAYER ----
@@ -2637,11 +3610,1184 @@ function spawnParticles(x, y, color, count, spread) {
   }
 }
 
+// ---- VISUAL EFFECTS HELPERS ----
+function spawnLandingDustPuffs(x, y) {
+  // Spawn 4-6 dust particles on landing
+  let count = 4 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    let angle = (i / count) * Math.PI * 2;
+    let spread = 2 + Math.random() * 2;
+    playerVisualEffects.push({
+      type: 'dust',
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * spread,
+      vy: -Math.random() * 1.5 - 0.5, // slight upward drift
+      life: 20,
+      maxLife: 20,
+      size: 3 + Math.random() * 2,
+      color: '#9d8b7d' // tan/brown color
+    });
+  }
+}
+
+function spawnDodgeRollAfterimage(x, y, sprite, facing) {
+  // Add translucent copy of player at current position
+  dodgeRollAfterimages.push({
+    x: x,
+    y: y,
+    sprite: sprite,
+    facing: facing,
+    alpha: 0.3,
+    life: 8,
+    maxLife: 8
+  });
+}
+
+function recordPlayerPosition() {
+  // Keep track of last 3 positions for dodge afterimage
+  lastPlayerPositions.unshift({ x: player.x, y: player.y });
+  if (lastPlayerPositions.length > 3) {
+    lastPlayerPositions.pop();
+  }
+}
+
+function spawnSlashArc() {
+  // Spawn sword slash arc
+  playerVisualEffects.push({
+    type: 'slashArc',
+    x: player.x + player.w / 2,
+    y: player.y + player.h / 2 - 4,
+    facing: player.facing,
+    life: 8,
+    maxLife: 8
+  });
+}
+
 // ---- UPDATE ----
+
+
+// ============================================================
+// BATCH 2: COMBAT VISUAL EFFECTS - Functions
+// ============================================================
+
+// 1. HIT SPARK PARTICLES
+function spawnHitSparks(x, y) {
+  let sparkCount = 6 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < sparkCount; i++) {
+    let angle = (Math.PI * 2 * i) / sparkCount + (Math.random() - 0.5) * 0.4;
+    let speed = 3 + Math.random() * 2;
+    hitSparks.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 15 + Math.floor(Math.random() * 5),
+      maxLife: 15 + Math.floor(Math.random() * 5),
+    });
+  }
+}
+
+function updateHitSparks() {
+  for (let i = hitSparks.length - 1; i >= 0; i--) {
+    let s = hitSparks[i];
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy += 0.15;
+    s.vx *= 0.96;
+    s.life--;
+    if (s.life <= 0) hitSparks.splice(i, 1);
+  }
+}
+
+function drawHitSparks() {
+  for (let s of hitSparks) {
+    let alpha = s.life / s.maxLife;
+    ctx.globalAlpha = alpha;
+    let color = alpha > 0.7 ? '#ffffff' : '#ffff88';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(camera.x + s.x, camera.y + s.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// 2. ENEMY DEATH ANIMATION
+function triggerEnemyDeath(e) {
+  e.alive = false;
+  dyingEnemies_batch2.push({
+    x: e.x,
+    y: e.y,
+    type: e.type,
+    facing: e.facing || 1,
+    flashTimer: 5,
+    fragmentTimer: 0,
+    fragments: [],
+  });
+}
+
+function createDeathFragments(dying) {
+  let fragmentCount = 10 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < fragmentCount; i++) {
+    let angle = (Math.PI * 2 * i) / fragmentCount + (Math.random() - 0.5) * 0.6;
+    let speed = 2 + Math.random() * 3;
+    dying.fragments.push({
+      x: dying.x + 8,
+      y: dying.y + 8,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 25 + Math.random() * 15,
+      maxLife: 25 + Math.random() * 15,
+      size: 2 + Math.random() * 4,
+      color: ['#ff6b6b', '#ffaa44', '#ffdd00', '#88ff88', '#44aaff'][Math.floor(Math.random() * 5)],
+    });
+  }
+}
+
+function updateDyingEnemies() {
+  for (let i = dyingEnemies_batch2.length - 1; i >= 0; i--) {
+    let dying = dyingEnemies_batch2[i];
+    if (dying.flashTimer > 0) {
+      dying.flashTimer--;
+      if (dying.flashTimer === 0) {
+        dying.fragmentTimer = 30;
+        createDeathFragments(dying);
+      }
+    }
+    if (dying.fragmentTimer > 0) {
+      dying.fragmentTimer--;
+      for (let j = dying.fragments.length - 1; j >= 0; j--) {
+        let frag = dying.fragments[j];
+        frag.x += frag.vx;
+        frag.y += frag.vy;
+        frag.vy += 0.2;
+        frag.vx *= 0.94;
+        frag.life--;
+        if (frag.life <= 0) dying.fragments.splice(j, 1);
+      }
+    }
+    if (dying.flashTimer <= 0 && dying.fragmentTimer <= 0 && dying.fragments.length === 0) {
+      dyingEnemies_batch2.splice(i, 1);
+    }
+  }
+}
+
+function drawDyingEnemies() {
+  for (let dying of dyingEnemies_batch2) {
+    if (dying.flashTimer > 0) {
+      let flashAlpha = dying.flashTimer / 5;
+      ctx.globalAlpha = flashAlpha * 0.8;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(camera.x + dying.x, camera.y + dying.y, 16, 16);
+      ctx.globalAlpha = 1;
+    }
+    for (let frag of dying.fragments) {
+      let alpha = frag.life / frag.maxLife;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = frag.color;
+      ctx.fillRect(camera.x + frag.x, camera.y + frag.y, frag.size, frag.size);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+// 3. BOSS HEALTH BARS
+function drawBossHealthBar(boss) {
+  if (!boss || !boss.alive || boss.hp >= boss.maxHp) return;
+  let barWidth = 60;
+  let barHeight = 8;
+  let barX = camera.x + boss.x + boss.w / 2 - barWidth / 2;
+  let barY = camera.y + boss.y - 24;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#ffdd00';
+  ctx.font = 'bold 14px Arial';
+  ctx.textAlign = 'center';
+  let bossName = boss.type === 'knight' ? 'GOBLIN KNIGHT' : 'BOSS';
+  ctx.fillText(bossName, barX + barWidth / 2, barY - 8);
+  ctx.fillStyle = '#330000';
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+  let healthPercent = boss.hp / boss.maxHp;
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(barX, barY, barWidth * healthPercent, barHeight);
+  ctx.strokeStyle = '#ffdd00';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(barX, barY, barWidth, barHeight);
+  if (boss.hurtTimer > 0 && boss.hurtTimer < 5) {
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(barX, barY, barWidth, barHeight);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// 4. DAMAGE NUMBERS
+function spawnDamageNumber(x, y, amount, type = 'damage') {
+  damageNumbers.push({
+    x: x,
+    y: y,
+    text: amount.toString(),
+    type: type,
+    life: 30,
+    maxLife: 30,
+  });
+}
+
+function updateDamageNumbers() {
+  for (let i = damageNumbers.length - 1; i >= 0; i--) {
+    let dn = damageNumbers[i];
+    dn.y -= 1.2;
+    dn.life--;
+    if (dn.life <= 0) damageNumbers.splice(i, 1);
+  }
+}
+
+function drawDamageNumbers() {
+  for (let dn of damageNumbers) {
+    let alpha = dn.life / dn.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = dn.type === 'heal' ? '#44ff44' : '#ff4444';
+    ctx.fillText(
+      dn.type === 'heal' ? '+' + dn.text : '-' + dn.text,
+      camera.x + dn.x,
+      camera.y + dn.y
+    );
+    ctx.globalAlpha = 1;
+  }
+}
+
+// 5. SCREEN SHAKE
+function triggerScreenShake(amplitude = 5, duration = 10) {
+  screenShake.intensity = amplitude;
+  screenShake.decayRate = Math.pow(0.1, 1 / duration);
+}
+
+function updateScreenShake() {
+  if (screenShake.intensity > 0.1) {
+    screenShake.x = (Math.random() - 0.5) * 2 * screenShake.intensity;
+    screenShake.y = (Math.random() - 0.5) * 2 * screenShake.intensity;
+    screenShake.intensity *= screenShake.decayRate;
+  } else {
+    screenShake.x = 0;
+    screenShake.y = 0;
+    screenShake.intensity = 0;
+  }
+}
+
+// 6. ENEMY ALERT INDICATOR
+function spawnAlertIndicator(enemy) {
+  let hasAlert = alertIndicators.some(ai => ai.enemyId === enemy.id);
+  if (hasAlert) return;
+  alertIndicators.push({
+    enemyId: enemy.id,
+    x: enemy.x + enemy.w / 2,
+    y: enemy.y - 24,
+    life: 20,
+    maxLife: 20,
+  });
+}
+
+function updateAlertIndicators() {
+  for (let i = alertIndicators.length - 1; i >= 0; i--) {
+    let ai = alertIndicators[i];
+    ai.life--;
+    if (ai.life <= 0) alertIndicators.splice(i, 1);
+  }
+}
+
+function drawAlertIndicators() {
+  for (let ai of alertIndicators) {
+    let alpha = ai.life / ai.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffff00';
+    ctx.font = 'bold 20px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', camera.x + ai.x, camera.y + ai.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// 7. HIT SPLATTER PARTICLES
+function spawnHitSplatter(enemy, x, y) {
+  let color = '#ff4444';
+  if (enemy.type === 'goblin') color = '#44ff44';
+  else if (enemy.type === 'wraith') color = '#8844ff';
+  else if (enemy.type === 'shadow') color = '#8844ff';
+  let splatCount = 3 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < splatCount; i++) {
+    let angle = (Math.PI * 0.5 + (Math.random() - 0.5) * 0.6);
+    let speed = 2 + Math.random() * 2;
+    hitSplatters.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 20 + Math.random() * 10,
+      maxLife: 20 + Math.random() * 10,
+      size: 2 + Math.random() * 3,
+      color: color,
+    });
+  }
+}
+
+function updateHitSplatters() {
+  for (let i = hitSplatters.length - 1; i >= 0; i--) {
+    let s = hitSplatters[i];
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy += 0.25;
+    s.vx *= 0.92;
+    s.life--;
+    if (s.life <= 0) hitSplatters.splice(i, 1);
+  }
+}
+
+function drawHitSplatters() {
+  for (let s of hitSplatters) {
+    let alpha = s.life / s.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = s.color;
+    ctx.fillRect(camera.x + s.x, camera.y + s.y, s.size, s.size);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// 8. BOSS ENTRANCE TITLE CARD
+function triggerBossEntrance(bossName) {
+  if (bossEntranceCard) return;
+  bossEntranceCard = {
+    name: bossName,
+    life: 60,
+    maxLife: 60,
+  };
+}
+
+function updateBossEntranceCard() {
+  if (bossEntranceCard) {
+    bossEntranceCard.life--;
+    if (bossEntranceCard.life <= 0) bossEntranceCard = null;
+  }
+}
+
+function drawBossEntranceCard() {
+  if (!bossEntranceCard) return;
+  let alpha = bossEntranceCard.life / bossEntranceCard.maxLife;
+  ctx.globalAlpha = alpha * 0.7;
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, BASE_W, BASE_H);
+  ctx.globalAlpha = alpha;
+  ctx.font = 'bold 60px "Arial Black"';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.fillText(bossEntranceCard.name, BASE_W / 2 + 3, BASE_H / 2 + 3);
+  ctx.fillStyle = '#ffdd00';
+  ctx.fillText(bossEntranceCard.name, BASE_W / 2, BASE_H / 2);
+  ctx.strokeStyle = 'rgba(255, 221, 0, 0.3)';
+  ctx.lineWidth = 4;
+  ctx.strokeText(bossEntranceCard.name, BASE_W / 2, BASE_H / 2);
+  ctx.globalAlpha = 1;
+}
+
+// Helper functions for triggering multiple effects
+function triggerCombatEffects(enemy, hitX, hitY) {
+  spawnHitSparks(hitX, hitY);
+  spawnHitSplatter(enemy, hitX, hitY);
+  spawnDamageNumber(hitX, hitY, 1, 'damage');
+  triggerScreenShake(3, 6);
+}
+
+function triggerBossDamageEffects(boss, hitX, hitY) {
+  spawnHitSparks(hitX, hitY);
+  spawnHitSparks(hitX + (Math.random()-0.5)*20, hitY + (Math.random()-0.5)*20);
+  spawnHitSplatter(boss, hitX, hitY);
+  spawnDamageNumber(hitX, hitY, 1, 'damage');
+  triggerScreenShake(5, 8);
+}
+
+function triggerHeavyImpactEffects(x, y) {
+  triggerScreenShake(6, 10);
+  for (let i = 0; i < 2; i++) {
+    spawnHitSparks(x + (Math.random()-0.5)*30, y + (Math.random()-0.5)*30);
+  }
+}
+
+// ===== BATCH 4: UI/HUD IMPROVEMENT FUNCTIONS =====
+
+// 1. ANIMATED HEART CONTAINERS
+function drawHUD_AnimatedHearts() {
+  let heartSize = 16;
+  let heartSpacing = 20;
+  let heartStartX = 10;
+  let heartStartY = 12;
+
+  if (player.hp < lastHeartCount) {
+    heartLossTimer = 20;
+  }
+  lastHeartCount = player.hp;
+  if (heartLossTimer > 0) heartLossTimer--;
+
+  for (let i = 0; i < player.maxHp; i++) {
+    let hx = heartStartX + i * heartSpacing;
+    let hy = heartStartY;
+    let currentHeartSize = heartSize;
+
+    let basePulse = 1.0 + Math.sin(frameCount * 0.08) * 0.05;
+
+    if (i < player.hp) {
+      let extraPulse = 1.0;
+      if (player.hp <= 2) {
+        extraPulse = 1.0 + Math.sin(frameCount * 0.15) * 0.12;
+      }
+      let totalPulse = basePulse * extraPulse;
+      currentHeartSize = heartSize * totalPulse;
+      hx -= (totalPulse - 1.0) * heartSize / 2;
+      hy -= (totalPulse - 1.0) * heartSize / 2;
+
+      ctx.save();
+      ctx.translate(hx + currentHeartSize/2, hy + currentHeartSize/2);
+      ctx.scale(totalPulse, totalPulse);
+      ctx.translate(-(hx + currentHeartSize/2), -(hy + currentHeartSize/2));
+
+      if (heartLossTimer > 0 && i >= player.hp - 1) {
+        let flashIntensity = heartLossTimer / 20;
+        ctx.fillStyle = `rgba(255, 0, 0, ${flashIntensity * 0.6})`;
+        ctx.fillRect(hx, hy, currentHeartSize, currentHeartSize);
+      }
+
+      ctx.fillStyle = '#ff2244';
+      ctx.beginPath();
+      ctx.moveTo(hx + currentHeartSize/2, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx + currentHeartSize/2, hy, hx, hy, hx, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx, hy + currentHeartSize * 0.6, hx + currentHeartSize/2, hy + currentHeartSize * 0.85, hx + currentHeartSize/2, hy + currentHeartSize);
+      ctx.bezierCurveTo(hx + currentHeartSize/2, hy + currentHeartSize * 0.85, hx + currentHeartSize, hy + currentHeartSize * 0.6, hx + currentHeartSize, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx + currentHeartSize, hy, hx + currentHeartSize/2, hy, hx + currentHeartSize/2, hy + currentHeartSize * 0.35);
+      ctx.fill();
+
+      ctx.fillStyle = '#ff6688';
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(hx + currentHeartSize * 0.35, hy + currentHeartSize * 0.35, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+    } else {
+      let emptyPulse = basePulse * 0.95;
+      currentHeartSize = heartSize * emptyPulse;
+      hx -= (emptyPulse - 1.0) * heartSize / 2;
+      hy -= (emptyPulse - 1.0) * heartSize / 2;
+
+      ctx.save();
+      ctx.translate(hx + currentHeartSize/2, hy + currentHeartSize/2);
+      ctx.scale(emptyPulse, emptyPulse);
+      ctx.translate(-(hx + currentHeartSize/2), -(hy + currentHeartSize/2));
+
+      ctx.strokeStyle = '#662233';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = '#220a0a';
+      ctx.beginPath();
+      ctx.moveTo(hx + currentHeartSize/2, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx + currentHeartSize/2, hy, hx, hy, hx, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx, hy + currentHeartSize * 0.6, hx + currentHeartSize/2, hy + currentHeartSize * 0.85, hx + currentHeartSize/2, hy + currentHeartSize);
+      ctx.bezierCurveTo(hx + currentHeartSize/2, hy + currentHeartSize * 0.85, hx + currentHeartSize, hy + currentHeartSize * 0.6, hx + currentHeartSize, hy + currentHeartSize * 0.35);
+      ctx.bezierCurveTo(hx + currentHeartSize, hy, hx + currentHeartSize/2, hy, hx + currentHeartSize/2, hy + currentHeartSize * 0.35);
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+}
+
+// 2. GEM COUNTER SPARKLE EFFECT
+function triggerGemSparkle() {
+  let gemCounterX = BASE_W - 16;
+  let gemCounterY = 71;
+
+  let sparkleCount = 3 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < sparkleCount; i++) {
+    let angle = (Math.PI * 2 * i) / sparkleCount + (Math.random() - 0.5) * 0.3;
+    let dist = 15 + Math.random() * 25;
+    gemSparkles.push({
+      x: gemCounterX + Math.cos(angle) * dist,
+      y: gemCounterY + Math.sin(angle) * dist,
+      life: 15,
+      maxLife: 15,
+      vx: Math.cos(angle) * 1.5,
+      vy: Math.sin(angle) * 1.5
+    });
+  }
+}
+
+function updateGemSparkles() {
+  for (let i = gemSparkles.length - 1; i >= 0; i--) {
+    let s = gemSparkles[i];
+    s.life--;
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy += 0.3;
+    if (s.life <= 0) {
+      gemSparkles.splice(i, 1);
+    }
+  }
+}
+
+function drawGemSparkles() {
+  for (let s of gemSparkles) {
+    let alpha = s.life / s.maxLife;
+    ctx.fillStyle = `rgba(68, 255, 238, ${alpha * 0.8})`;
+    ctx.globalAlpha = alpha;
+
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate((15 - s.life) * 0.3);
+    let starSize = 3;
+    ctx.beginPath();
+    ctx.moveTo(0, -starSize);
+    ctx.lineTo(starSize * 0.4, -starSize * 0.4);
+    ctx.lineTo(starSize, 0);
+    ctx.lineTo(starSize * 0.4, starSize * 0.4);
+    ctx.lineTo(0, starSize);
+    ctx.lineTo(-starSize * 0.4, starSize * 0.4);
+    ctx.lineTo(-starSize, 0);
+    ctx.lineTo(-starSize * 0.4, -starSize * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// 3. SCORE POPUP WITH COMBO MULTIPLIER
+function addScorePopup(x, y, points, isCombo = false) {
+  let now = frameCount;
+  let timeSinceLastKill = now - lastKillTime;
+
+  if (timeSinceLastKill < comboTimeout) {
+    comboMultiplier = Math.min(10, comboMultiplier + 1);
+  } else {
+    comboMultiplier = 1;
+  }
+  lastKillTime = now;
+
+  let finalPoints = Math.floor(points * comboMultiplier);
+
+  let text = `+${finalPoints}`;
+  if (comboMultiplier > 1) {
+    text += ` x${comboMultiplier}!`;
+  }
+
+  scorePopups.push({
+    x: x,
+    y: y,
+    text: text,
+    life: 60,
+    maxLife: 60,
+    vx: (Math.random() - 0.5) * 2,
+    vy: -2.5,
+    size: 16,
+    isCombo: comboMultiplier > 1,
+    multiplier: comboMultiplier
+  });
+
+  score += finalPoints;
+}
+
+function updateScorePopups() {
+  for (let i = scorePopups.length - 1; i >= 0; i--) {
+    let p = scorePopups[i];
+    p.life--;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy -= 0.15;
+    p.vx *= 0.98;
+
+    if (p.life <= 0) {
+      scorePopups.splice(i, 1);
+    }
+  }
+}
+
+function drawScorePopups() {
+  for (let p of scorePopups) {
+    let alpha = Math.max(0, p.life / p.maxLife);
+    let scaleMultiplier = 1.0 + (1 - alpha) * 0.3;
+
+    if (p.isCombo) {
+      ctx.fillStyle = `rgba(255, 136, 68, ${alpha * 0.9})`;
+      ctx.shadowColor = `rgba(255, 170, 100, ${alpha * 0.8})`;
+      ctx.shadowBlur = 8;
+    } else {
+      ctx.fillStyle = `rgba(244, 208, 63, ${alpha * 0.9})`;
+      ctx.shadowColor = 'rgba(100, 100, 0, 0.5)';
+      ctx.shadowBlur = 4;
+    }
+
+    ctx.globalAlpha = alpha;
+    ctx.font = `bold ${p.size * scaleMultiplier}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.text, p.x, p.y);
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ===== BATCH 5: COLLECTIBLE VISUAL EFFECTS =====
+// Update collectible visual effects
+function updateCollectibleEffects() {
+  // Update gem sparkle effects
+  for (let i = gemSparkleEffects.length - 1; i >= 0; i--) {
+    let s = gemSparkleEffects[i];
+    s.life--;
+    if (s.life <= 0) {
+      gemSparkleEffects.splice(i, 1);
+    }
+  }
+
+  // Update health glow effects
+  for (let i = healthGlows.length - 1; i >= 0; i--) {
+    let g = healthGlows[i];
+    g.life = (g.life || 0) + 1;
+    if (g.life > 30) {
+      healthGlows.splice(i, 1);
+    }
+  }
+
+  // Update collection burst particles
+  for (let i = collectionBursts.length - 1; i >= 0; i--) {
+    let p = collectionBursts[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    if (p.life <= 0) {
+      collectionBursts.splice(i, 1);
+    }
+  }
+}
+
+// Draw collectible visual effects (called in draw loop)
+function drawCollectibleEffects() {
+  // Draw health glow effects under health items
+  for (let g of healthGlows) {
+    let glowAlpha = 0.4 * (1 - g.life / 30);
+    let pulseRadius = g.maxRadius * (0.7 + Math.sin(g.life * 0.2) * 0.3);
+
+    let grad = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, pulseRadius);
+    grad.addColorStop(0, `rgba(255, 100, 150, ${glowAlpha})`);
+    grad.addColorStop(1, `rgba(255, 100, 150, 0)`);
+
+    ctx.fillStyle = grad;
+    ctx.fillRect(g.x - pulseRadius, g.y - pulseRadius, pulseRadius * 2, pulseRadius * 2);
+  }
+
+  // Draw collection burst particles
+  for (let p of collectionBursts) {
+    let alpha = p.life / p.maxLife;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Spawn collection burst particles
+function spawnCollectionBurst(x, y, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    let angle = (Math.PI * 2 * i) / count + (Math.random() - 0.5) * 0.3;
+    let speed = 2 + Math.random() * 2;
+    collectionBursts.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 15 + Math.random() * 5,
+      maxLife: 15 + Math.random() * 5,
+      color: color,
+      size: 2 + Math.random() * 2
+    });
+  }
+}
+
+// Spawn gem sparkle effects around a gem
+function spawnGemSparkles(x, y) {
+  // Spawn 1-2 sparkles around the gem
+  let count = Math.random() > 0.5 ? 1 : 2;
+  for (let i = 0; i < count; i++) {
+    let angle = Math.random() * Math.PI * 2;
+    let distance = 8 + Math.random() * 6;
+    gemSparkleEffects.push({
+      x: x + Math.cos(angle) * distance,
+      y: y + Math.sin(angle) * distance,
+      life: 8 + Math.random() * 4,
+      maxLife: 8 + Math.random() * 4,
+      size: 1.5 + Math.random()
+    });
+  }
+}
+
+// Spawn health glow effect
+function spawnHealthGlow(x, y) {
+  healthGlows.push({
+    x: x,
+    y: y,
+    life: 0,
+    maxRadius: 16,
+    alpha: 0.5
+  });
+}
+
+// 4. LEVEL TITLE CARD
+function showLevelTitleCard(levelName, subtitle = '') {
+  levelTitleCard.active = true;
+  levelTitleCard.timer = 0;
+  levelTitleCard.title = levelName;
+  levelTitleCard.subtitle = subtitle;
+  levelTitleCard.duration = 60;
+  levelTitleCard.fadeOutDuration = 30;
+}
+
+function updateLevelTitleCard() {
+  if (levelTitleCard.active) {
+    levelTitleCard.timer++;
+    if (levelTitleCard.timer > levelTitleCard.duration + levelTitleCard.fadeOutDuration) {
+      levelTitleCard.active = false;
+    }
+  }
+}
+
+function drawLevelTitleCard() {
+  if (!levelTitleCard.active) return;
+
+  let elapsed = levelTitleCard.timer;
+  let totalDuration = levelTitleCard.duration + levelTitleCard.fadeOutDuration;
+
+  let fadeInDuration = 20;
+  let alphaIn = Math.min(1, elapsed / fadeInDuration);
+
+  let holdStart = fadeInDuration;
+  let holdEnd = holdStart + levelTitleCard.duration;
+
+  let fadeOutStart = holdEnd;
+  let alphaOut = Math.max(0, 1 - (elapsed - fadeOutStart) / levelTitleCard.fadeOutDuration);
+
+  let alpha = elapsed < holdStart ? alphaIn : alphaOut;
+
+  ctx.fillStyle = `rgba(10, 26, 10, ${alpha * 0.85})`;
+  ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+  let grad = ctx.createLinearGradient(0, BASE_H * 0.3, 0, BASE_H * 0.7);
+  grad.addColorStop(0, `rgba(0, 0, 0, ${alpha * 0.3})`);
+  grad.addColorStop(0.5, `rgba(30, 60, 30, ${alpha * 0.1})`);
+  grad.addColorStop(1, `rgba(0, 0, 0, ${alpha * 0.3})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+  ctx.globalAlpha = alpha;
+
+  ctx.font = 'bold 72px serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#f4d03f';
+
+  ctx.shadowColor = `rgba(244, 208, 63, ${alpha * 0.6})`;
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.fillText(levelTitleCard.title, BASE_W / 2, BASE_H / 2 - 30);
+
+  ctx.font = 'italic 24px serif';
+  ctx.fillStyle = '#ddd';
+  ctx.shadowColor = 'rgba(200, 200, 200, 0.3)';
+  ctx.shadowBlur = 8;
+  ctx.fillText(levelTitleCard.subtitle, BASE_W / 2, BASE_H / 2 + 40);
+
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+}
+
+// 5. SMOOTH CAMERA FOLLOWING
+function updateSmoothCamera() {
+  let lookAhead = player.facing * 60;
+  let targetCamX = player.x - BASE_W / 3 + lookAhead;
+  let targetCamY = player.y - BASE_H * 0.6;
+
+  const CAMERA_SMOOTH = 0.08;
+  camera.x += (targetCamX - camera.x) * CAMERA_SMOOTH;
+  camera.y += (targetCamY - camera.y) * CAMERA_SMOOTH;
+
+  camera.x = Math.max(0, Math.min(LEVEL_W - BASE_W, camera.x));
+  let maxCamDown = 0;
+  if (currentLevel === 4) {
+    maxCamDown = 45 * TILE;
+  }
+  camera.y = Math.max(-(ROWS * TILE * 4), Math.min(maxCamDown, camera.y));
+}
+
+// 6. PROGRESS BAR
+function drawProgressBar() {
+  let levelProgress = Math.min(1, player.x / maxLevelWidth);
+
+  let barHeight = 4;
+  let barWidth = BASE_W;
+  let barY = 4;
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(0, barY, barWidth, barHeight);
+
+  let grad = ctx.createLinearGradient(0, 0, barWidth * levelProgress, 0);
+  grad.addColorStop(0, '#8B6914');
+  grad.addColorStop(0.5, '#f4d03f');
+  grad.addColorStop(1, '#DAA520');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, barY, barWidth * levelProgress, barHeight);
+
+  ctx.strokeStyle = '#f4d03f';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(0, barY, barWidth, barHeight);
+
+  let percentage = Math.floor(levelProgress * 100);
+  ctx.fillStyle = '#f4d03f';
+  ctx.font = '8px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(percentage + '%', BASE_W - 4, barY + 12);
+}
+
+// 7. POTION COOLDOWN ANIMATION
+function updatePotionCooldowns() {
+  for (let key in potionCooldowns) {
+    potionCooldowns[key] = Math.max(0, potionCooldowns[key] - 1);
+  }
+}
+
+function drawPotionCooldownAnimation() {
+  let potionSlotX = 16;
+  let potionSlotY = BASE_H - 100;
+  let potionSlotSize = 32;
+
+  let potionCD = potionCooldowns['heal'] || 0;
+  if (potionCD <= 0) return;
+
+  let cooldownPercent = potionCD / maxPotionCooldown;
+
+  ctx.fillStyle = `rgba(0, 0, 0, ${cooldownPercent * 0.5})`;
+  ctx.fillRect(potionSlotX, potionSlotY, potionSlotSize, potionSlotSize);
+
+  ctx.save();
+
+  let centerX = potionSlotX + potionSlotSize / 2;
+  let centerY = potionSlotY + potionSlotSize / 2;
+  let radius = potionSlotSize / 2 + 5;
+
+  ctx.beginPath();
+  let startAngle = -Math.PI / 2;
+  let endAngle = startAngle + (Math.PI * 2 * cooldownPercent);
+  ctx.arc(centerX, centerY, radius, startAngle, endAngle);
+  ctx.lineTo(centerX, centerY);
+  ctx.closePath();
+  ctx.clip();
+
+  ctx.fillStyle = 'rgba(100, 50, 50, 0.7)';
+  ctx.fillRect(potionSlotX - 10, potionSlotY - 10, potionSlotSize + 20, potionSlotSize + 20);
+
+  ctx.restore();
+
+  if (potionCD > 0) {
+    let secondsLeft = Math.ceil(potionCD / 60);
+    ctx.fillStyle = '#ff8888';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(secondsLeft, centerX, centerY + 4);
+  }
+}
+
+// 8. XP BAR GLOW SWEEP
+function triggerXPGlowSweep() {
+  xpGlowSweep.active = true;
+  xpGlowSweep.timer = 0;
+}
+
+function drawXPBar() {
+  let xpBarX = 16;
+  let xpBarY = BASE_H - 78;
+  let xpBarWidth = 200;
+  let xpBarHeight = 8;
+
+  let xpProgress = (player.xp || 0) / (player.xpToNextLevel || 100);
+  xpProgress = Math.min(1, xpProgress);
+
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(xpBarX, xpBarY, xpBarWidth, xpBarHeight);
+
+  let grad = ctx.createLinearGradient(xpBarX, 0, xpBarX + xpBarWidth, 0);
+  grad.addColorStop(0, '#1a4d99');
+  grad.addColorStop(0.5, '#3498db');
+  grad.addColorStop(1, '#1a4d99');
+  ctx.fillStyle = grad;
+  ctx.fillRect(xpBarX, xpBarY, xpBarWidth * xpProgress, xpBarHeight);
+
+  if (xpGlowSweep.active && xpGlowSweep.timer < xpGlowSweep.duration) {
+    let sweepProgress = xpGlowSweep.timer / xpGlowSweep.duration;
+    let sweepX = xpBarX + (xpBarWidth * xpProgress) * sweepProgress;
+
+    ctx.save();
+    let sweepGrad = ctx.createLinearGradient(sweepX - 40, 0, sweepX + 40, 0);
+    sweepGrad.addColorStop(0, 'rgba(100, 200, 255, 0)');
+    sweepGrad.addColorStop(0.5, 'rgba(200, 255, 255, 0.8)');
+    sweepGrad.addColorStop(1, 'rgba(100, 200, 255, 0)');
+    ctx.fillStyle = sweepGrad;
+    ctx.fillRect(sweepX - 40, xpBarY, 80, xpBarHeight);
+    ctx.restore();
+
+    xpGlowSweep.timer++;
+  } else if (xpGlowSweep.timer >= xpGlowSweep.duration) {
+    xpGlowSweep.active = false;
+  }
+
+  ctx.strokeStyle = '#3498db';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(xpBarX, xpBarY, xpBarWidth, xpBarHeight);
+
+  ctx.fillStyle = '#3498db';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('XP', xpBarX + 4, xpBarY + 14);
+}
+
+// ===== END BATCH 4 FUNCTIONS =====
+
+// ===== LEVEL-SPECIFIC AMBIENT EFFECTS UPDATE =====
+function updateLevelAmbientEffects() {
+  // Level 1: Owl eyes and wolf howl vignette
+  if (currentLevel === 1) {
+    // Update owl eyes blinking
+    for (let eye of owlEyes) {
+      eye.blinkCounter++;
+      if (eye.blinkCounter > eye.blinkTimer) {
+        eye.blinkTimer = 120 + Math.floor(Math.random() * 60);
+        eye.blinkCounter = 0;
+      }
+    }
+    // Wolf howl vignette effect
+    wolfHowlTimer++;
+    if (wolfHowlTimer > 600) {
+      wolfHowlTimer = 0;
+      wolfHowlVignette = 0.15;
+    }
+    if (wolfHowlVignette > 0) {
+      wolfHowlVignette -= 0.003; // fade over ~40 frames
+    }
+  }
+
+  // Level 2: Waterfall mists, fish jumps, and rainbow
+  if (currentLevel === 2) {
+    // Update waterfall mists
+    for (let mist of waterfallMists) {
+      for (let i = mist.particles.length - 1; i >= 0; i--) {
+        let p = mist.particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        if (p.life <= 0) {
+          // Respawn particle
+          mist.particles[i] = {
+            x: Math.random() * 40 - 20,
+            y: Math.random() * 80,
+            vx: (Math.random() - 0.5) * 0.5,
+            vy: -0.3,
+            life: Math.random() * 60,
+            maxLife: 60 + Math.random() * 30,
+          };
+        }
+      }
+    }
+    // Update fish jump timers
+    for (let fish of fishJumps) {
+      fish.phase--;
+      if (fish.phase <= 0) {
+        fish.active = true;
+        fish.phase = 300 + Math.floor(Math.random() * 120);
+      }
+    }
+  }
+
+  // Level 3: Butterflies and blooming flowers
+  if (currentLevel === 3) {
+    // Update butterflies
+    for (let butterfly of butterflies) {
+      if (!butterfly.scattered) {
+        // Normal flutter motion in sine wave
+        butterfly.phase += 0.05;
+        let flutterAmount = 20;
+        butterfly.x = butterfly.homeX + Math.sin(butterfly.phase) * flutterAmount;
+        butterfly.y = butterfly.homeY + Math.cos(butterfly.phase * 0.7) * flutterAmount * 0.5;
+
+        // Check if player is within 60px
+        let playerDist = Math.hypot(
+          player.x + player.w / 2 - butterfly.x,
+          player.y + player.h / 2 - butterfly.y
+        );
+        if (playerDist < 60) {
+          butterfly.scattered = true;
+          butterfly.scatterTimer = 0;
+          butterfly.vx = (Math.random() - 0.5) * 4;
+          butterfly.vy = (Math.random() - 0.5) * 4 - 2;
+        }
+      } else {
+        // Scattered: fly away quickly
+        butterfly.scatterTimer++;
+        if (butterfly.scatterTimer < 60) {
+          butterfly.x += butterfly.vx;
+          butterfly.y += butterfly.vy;
+        } else {
+          // Slowly return home
+          let returnSpeed = 0.02;
+          butterfly.vx += (butterfly.homeX - butterfly.x) * returnSpeed;
+          butterfly.vy += (butterfly.homeY - butterfly.y) * returnSpeed;
+          butterfly.x += butterfly.vx * 0.3;
+          butterfly.y += butterfly.vy * 0.3;
+
+          let distToHome = Math.hypot(butterfly.homeX - butterfly.x, butterfly.homeY - butterfly.y);
+          if (distToHome < 5) {
+            butterfly.scattered = false;
+            butterfly.scatterTimer = 0;
+            butterfly.vx = 0;
+            butterfly.vy = 0;
+          }
+        }
+      }
+    }
+
+    // Update blooming flowers
+    for (let flower of bloomingFlowers) {
+      let playerDist = Math.hypot(
+        player.x + player.w / 2 - flower.x,
+        player.y + player.h / 2 - flower.y
+      );
+
+      if (playerDist < 100 && !flower.bloomed) {
+        flower.bloomTimer++;
+        if (flower.bloomTimer >= flower.maxBloomTime) {
+          flower.bloomed = true;
+          flower.bloomAmount = 1;
+        } else {
+          flower.bloomAmount = flower.bloomTimer / flower.maxBloomTime;
+        }
+      }
+    }
+  }
+
+  // Level 4: Dripping stalactites and glowing mushrooms
+  if (currentLevel === 4) {
+    // Update stalactite drips
+    for (let stalactite of drippingStalactites) {
+      stalactite.dropTimer--;
+      if (stalactite.dropTimer <= 0) {
+        // Drop water
+        stalactite.dropTimer = 90 + Math.floor(Math.random() * 90);
+        // Spawn water drop particles (handled in draw)
+      }
+    }
+
+    // Update glowing mushroom glow phase
+    for (let mushroom of glowingMushrooms) {
+      mushroom.glowPhase += 0.03;
+    }
+
+    // Spawn crumbling debris during boss fight when boss is alive
+    let boss = enemies.find(e => e.type === 'lich_boss' && e.alive);
+    if (boss) {
+      if (frameCount % 120 === 0) {
+        // Spawn debris from ceiling
+        let debrisX = Math.random() * LEVEL_W;
+        crumblingDebris.push({
+          x: debrisX,
+          y: -30,
+          vx: 0,
+          vy: 0,
+          life: 120,
+          maxLife: 120,
+          dustParticles: [],
+        });
+      }
+    }
+
+    // Update debris
+    for (let i = crumblingDebris.length - 1; i >= 0; i--) {
+      let debris = crumblingDebris[i];
+      debris.vy += 0.3; // gravity
+      debris.y += debris.vy;
+      debris.life--;
+      if (debris.life <= 0) {
+        crumblingDebris.splice(i, 1);
+      }
+    }
+  }
+
+  // Level 5: Throne room torches, ground fog, and crumbling ceiling
+  if (currentLevel === 5) {
+    // Update torch flames (phase animation)
+    for (let torch of throneRoomTorches) {
+      torch.flamePhase += 0.05;
+    }
+
+    // Update ground fog drift
+    for (let fog of groundFog) {
+      fog.phase += 0.01;
+      fog.driftX = Math.sin(fog.phase) * 20;
+    }
+
+    // Spawn ceiling debris during boss fight
+    let goblinBoss = enemies.find(e => e.type === 'goblin_summoner' && e.alive);
+    if (goblinBoss) {
+      if (frameCount % 120 === 0) {
+        let debrisX = 3 * TILE + Math.random() * (COLS - 6) * TILE;
+        crumblingDebris.push({
+          x: debrisX,
+          y: -30,
+          vx: 0,
+          vy: 0,
+          life: 120,
+          maxLife: 120,
+          dustParticles: [],
+        });
+      }
+    }
+
+    // Update debris
+    for (let i = crumblingDebris.length - 1; i >= 0; i--) {
+      let debris = crumblingDebris[i];
+      debris.vy += 0.3; // gravity
+      debris.y += debris.vy;
+      debris.life--;
+      if (debris.life <= 0) {
+        crumblingDebris.splice(i, 1);
+      }
+    }
+  }
+}
+
 function update() {
   if (gameState !== 'playing') return;
   frameCount++;
-  levelTimer++; // increment level timer every frame
+  levelTimer++;
+
+  // BATCH 6: Screen fade transition
+  screenFade.update(); // increment level timer every frame
+
+  // BATCH 4: UI/HUD updates
+  updateGemSparkles();
+  updateScorePopups();
+  updateLevelTitleCard();
+  updatePotionCooldowns();
+
+  // BATCH 5: Collectible visual effects
+  updateCollectibleEffects();
+
+  // ---- LEVEL-SPECIFIC EFFECTS UPDATE ----
+  updateLevelAmbientEffects();
 
   // ---- STYLE METER DECAY ----
   if (styleDecayTimer > 0) {
@@ -2671,6 +4817,11 @@ function update() {
 
   if (player.dodging) {
     player.vx = player.facing * 7;
+    // Spawn afterimage every 2 frames during dodge
+    if (frameCount % 2 === 0) {
+      let sprite = player.vx !== 0 && player.grounded ? KNIGHT_WALK_FRAMES[0] : KNIGHT_IDLE;
+      spawnDodgeRollAfterimage(player.x, player.y, sprite, player.facing);
+    }
     player.dodgeTimer--;
     if (player.dodgeTimer <= 0) { player.dodging = false; }
   } else if (player.blocking) {
@@ -2689,6 +4840,12 @@ function update() {
     player.idleTimer = 0;
   }
   player.breathOffset = Math.sin(frameCount * 0.05) * 1.5; // constant breathing
+
+  // Landing dust puff — detect transition from airborne to grounded
+  if (player.grounded && !player.wasGrounded) {
+    spawnLandingDustPuffs(player.x + player.w / 2, player.y + player.h);
+  }
+  player.wasGrounded = player.grounded;
 
   // Reset jumps when grounded + coyote time
   if (player.grounded) {
@@ -2876,6 +5033,7 @@ function update() {
   } else if (player.chargeTimer > 0 && !(keys['KeyZ'] || keys['KeyJ'])) {
     // Release
     player.attacking = true;
+    spawnSlashArc(); // Spawn slash arc effect
     if (player.chargeTimer >= 30) {
       // Heavy attack!
       player.attackTimer = 18;
@@ -2960,6 +5118,8 @@ function update() {
       player.vx = player.facing * dodgeSpeed;
       playSound('dodge');
       spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#44aaff', 8, 5);
+      // Clear afterimage trail for new dodge
+      dodgeRollAfterimages = [];
     }
   }
 
@@ -3002,16 +5162,17 @@ function update() {
         shakeTimer = 5;
         playSound('hit');
         spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ff4444', 8, 5);
+        triggerCombatEffects(e, e.x + e.w/2, e.y + e.h/2);
 
         if (e.hp <= 0) {
-          e.alive = false;
           let killPts = e.type === 'knight' ? 500 : 100 * Math.max(1, player.combo);
           score += killPts;
           playSound('kill');
           let pCount = e.type === 'knight' ? 30 : 15;
           spawnParticles(e.x + e.w / 2, e.y + e.h / 2, e.type === 'knight' ? '#ffcc00' : '#ffaa00', pCount, e.type === 'knight' ? 10 : 7);
           scorePopups.push({ x: e.x + e.w/2, y: e.y - 10, text: '+' + killPts, life: e.type === 'knight' ? 80 : 50 });
-          deadEnemies.push({ x: e.x, y: e.y, vy: -5, alpha: 1, sprite: GOBLIN, facing: e.facing });
+          triggerEnemyDeath(e);
+          triggerHeavyImpactEffects(e.x + e.w/2, e.y + e.h/2);
           hitStop = e.type === 'knight' ? 15 : 6;
           if (e.type === 'knight') shakeTimer = 20;
         }
@@ -3210,6 +5371,15 @@ function update() {
     if (de.alpha <= 0) deadEnemies.splice(i, 1);
   }
 
+  // --- Batch 2 visual effects updates ---
+  updateHitSparks();
+  updateDyingEnemies();
+  updateDamageNumbers();
+  updateHitSplatters();
+  updateAlertIndicators();
+  updateScreenShake();
+  updateBossEntranceCard();
+
   // --- Sword trail decay ---
   for (let i = swordTrail.length - 1; i >= 0; i--) {
     swordTrail[i].alpha -= 0.08;
@@ -3259,6 +5429,47 @@ function update() {
   // --- Grass swirl when running on ground ---
   if (player.grounded && Math.abs(player.vx) > 2 && frameCount % 8 === 0) {
     grassSwirls.push({ x: player.x + player.w / 2, y: player.y + player.h, alpha: 0.6, angle: 0 });
+    // Spawn 1-2 leaf/grass particles when running
+    for (let g = 0; g < (Math.abs(player.vx) > 4 ? 2 : 1); g++) {
+      const kickAngle = (Math.random() - 0.5) * Math.PI * 0.4;
+      const kickSpeed = 1.5 + Math.random() * 1.5;
+      particles.push({
+        x: player.x + player.w / 2 + (Math.random() - 0.5) * 8,
+        y: player.y + player.h,
+        vx: Math.cos(kickAngle) * kickSpeed * (player.facing > 0 ? 1 : -1),
+        vy: -Math.sin(kickAngle) * kickSpeed - 0.5,
+        color: '#5a8a33',
+        size: 1 + Math.random() * 1.5,
+        life: 25 + Math.random() * 15
+      });
+    }
+  }
+
+  // --- Update player visual effects (dust puffs, etc.) ---
+  for (let i = playerVisualEffects.length - 1; i >= 0; i--) {
+    let effect = playerVisualEffects[i];
+    effect.life--;
+    if (effect.type === 'dust') {
+      effect.x += effect.vx;
+      effect.y += effect.vy;
+      effect.vy += 0.1; // gravity
+      effect.vx *= 0.96; // air resistance
+      if (effect.life <= 0) {
+        playerVisualEffects.splice(i, 1);
+      }
+    } else if (effect.type === 'slashArc') {
+      if (effect.life <= 0) {
+        playerVisualEffects.splice(i, 1);
+      }
+    }
+  }
+
+  // --- Update dodge roll afterimages ---
+  for (let i = dodgeRollAfterimages.length - 1; i >= 0; i--) {
+    dodgeRollAfterimages[i].life--;
+    if (dodgeRollAfterimages[i].life <= 0) {
+      dodgeRollAfterimages.splice(i, 1);
+    }
   }
 
   // --- Water splash when landing in water zone ---
@@ -3266,11 +5477,45 @@ function update() {
     let waterY = GROUND_Y * TILE;
     if (Math.abs(player.y + player.h - waterY) < TILE) {
       splashes.push({ x: player.x + player.w / 2, y: waterY, vy: -2, spread: 0, alpha: 0.8 });
+      // Spawn ripples
+      waterRipples.push({
+        x: player.x + player.w / 2,
+        y: waterY,
+        life: 20,
+        maxLife: 20,
+        radius: 30
+      });
+      // Splash particles
       for (let d = 0; d < 6; d++) {
         particles.push({
           x: player.x + player.w / 2 + (Math.random() - 0.5) * 20,
           y: waterY, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 3,
           life: 15 + Math.random() * 10, color: '#66aadd', size: 2 + Math.random() * 2,
+        });
+      }
+    }
+  }
+
+  // --- Ripples and foam when walking in water (Level 2) ---
+  if (currentLevel === 2 && player.grounded && Math.abs(player.vx) > 1.5) {
+    let waterY = GROUND_Y * TILE;
+    if (Math.abs(player.y + player.h - waterY) < TILE && frameCount % 10 === 0) {
+      // Spawn ripples at feet
+      waterRipples.push({
+        x: player.x + player.w / 2,
+        y: waterY,
+        life: 15,
+        maxLife: 15,
+        radius: 25
+      });
+      // Spawn foam particles
+      for (let f = 0; f < 3; f++) {
+        foamParticles.push({
+          x: player.x + player.w / 2 + (Math.random() - 0.5) * 15,
+          y: waterY - 1,
+          life: 10 + Math.random() * 10,
+          maxLife: 10 + Math.random() * 10,
+          bobPhase: Math.random() * Math.PI * 2
         });
       }
     }
@@ -3295,18 +5540,8 @@ function update() {
     player.hp = 0;
   }
 
-  // Camera — look-ahead + vertical tracking
-  let lookAhead = player.facing * 60;
-  let targetCamX = player.x - BASE_W / 3 + lookAhead;
-  let targetCamY = player.y - BASE_H * 0.6;
-  camera.x += (targetCamX - camera.x) * 0.06;
-  camera.y += (targetCamY - camera.y) * 0.06;
-  camera.x = Math.max(0, Math.min(LEVEL_W - BASE_W, camera.x));
-  let maxCamDown = 0;
-  if (currentLevel === 4) {
-    maxCamDown = 45 * TILE; // allow camera to follow player deep underground
-  }
-  camera.y = Math.max(-(ROWS * TILE * 4), Math.min(maxCamDown, camera.y));
+  // Camera — smooth following with look-ahead (BATCH 4)
+  updateSmoothCamera();
 
   // Dynamic zoom
   let bossNear = false;
@@ -3485,6 +5720,7 @@ function update() {
         player.vx = -e.facing * 6;
         shakeTimer = 12;
         damageFlash = 0.6;
+        playerDamageFlash = 10; // Red damage tint for 10 frames
         hitStop = 8;
         playSound('hurt');
         spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff4444', 15, 8);
@@ -3570,6 +5806,7 @@ function update() {
             player.vx = Math.sign(dx) * 5;
             shakeTimer = 8;
             damageFlash = 0.5;
+            playerDamageFlash = 10;
             playSound('hurt');
             spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ffaa44', 10, 6);
           }
@@ -3585,6 +5822,7 @@ function update() {
         player.vx = Math.sign(dx) * 4;
         shakeTimer = 8;
         damageFlash = 0.5;
+        playerDamageFlash = 10;
         playSound('hurt');
         spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff2222', 10, 6);
       }
@@ -4399,10 +6637,24 @@ function update() {
     }
   }
 
-  // --- Collectibles ---
+  // --- Collectibles (with magnet effect) ---
   for (const c of collectibles) {
     if (!c.alive) continue;
-    if (rectOverlap(player, c)) {
+
+    // BATCH 5: Gem magnet effect — drift toward player if within 80px
+    let dx = (player.x + player.w/2) - (c.x + c.w/2);
+    let dy = (player.y + player.h/2) - (c.y + c.h/2);
+    let dist = Math.sqrt(dx*dx + dy*dy);
+
+    if (dist < 80 && dist > 0) {
+      // Lerp position toward player at 0.05 speed
+      let lerpFactor = 0.05;
+      c.x += (dx / dist) * (Math.sqrt(dist) * lerpFactor * 0.15);
+      c.y += (dy / dist) * (Math.sqrt(dist) * lerpFactor * 0.15);
+    }
+
+    // Snap to collect if within 40px
+    if (dist < 40 || rectOverlap(player, c)) {
       c.alive = false;
       if (c.type === 'gem') {
         let gemValue = 50;
@@ -4414,8 +6666,13 @@ function update() {
         gemValue = Math.floor(gemValue * styleMultiplier);
         score += gemValue;
         collectedGems++;
+        triggerGemSparkle(); // BATCH 4: Gem sparkle effect
         playSound('gem');
         spawnParticles(c.x, c.y, '#44ffff', 8, 4);
+        // BATCH 5: Spawn collection burst
+        spawnCollectionBurst(c.x, c.y, '#44ffff', 8);
+        // Spawn gem sparkles
+        spawnGemSparkles(c.x, c.y);
         let save = loadSave();
         save.gems = (save.gems || 0) + 1;
         writeSave(save);
@@ -4423,6 +6680,10 @@ function update() {
         player.hp = Math.min(player.maxHp, player.hp + 1);
         playSound('heart');
         spawnParticles(c.x, c.y, '#ff4466', 8, 4);
+        // BATCH 5: Spawn collection burst for heart
+        spawnCollectionBurst(c.x, c.y, '#ff4466', 8);
+        // Spawn health glow (optional ambient effect)
+        spawnHealthGlow(c.x, c.y);
       }
     }
   }
@@ -4743,6 +7004,7 @@ function update() {
   // --- Exit portal ---
   if (exitPortal && !exitPortal.hidden && rectOverlap(player, exitPortal)) {
     playSound('win');
+    levelCelebration.start(exitPortal.x + exitPortal.w / 2, exitPortal.y + exitPortal.h / 2);
     // Save progress
     saveProgress();
     saveHighScore(currentLevel, score);
@@ -4815,8 +7077,15 @@ function update() {
 
   // --- Death ---
   if (player.hp <= 0 && gameState === 'playing') {
-    playSound('death');
-    spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff0000', 20, 8);
+    if (!deathAnimation.active) {
+      deathAnimation.start();
+      gameState = 'dead';
+      playSound('death');
+      // Disable input during death animation
+    }
+    deathAnimation.update();
+    // Still handle checkpoints for respawn logic
+    spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff0000', 5, 4);
     // Check checkpoint2 (hazard-based) first since it's farther in the level
     let cp2 = hazards.find(h => h.type === 'checkpoint2' && h.activated);
     let hasCheckpoint = (cp2) || (checkpoint && checkpoint.activated);
@@ -5176,6 +7445,52 @@ function drawTile(t) {
   }
 }
 
+// Helper function to draw parallax layers
+function drawParallaxLayers(layers) {
+  // layers = [{color, alpha, scrollFactor, shapes: [{x, y, type, size}]}]
+  for (const layer of layers) {
+    ctx.save();
+    ctx.globalAlpha = layer.alpha;
+    ctx.fillStyle = layer.color;
+    const scrollX = camera.x * layer.scrollFactor;
+    for (const shape of layer.shapes) {
+      const sx = shape.x - scrollX;
+      if (sx > -100 && sx < BASE_W + 100) {
+        if (shape.type === 'mountain') {
+          ctx.beginPath();
+          ctx.moveTo(sx - shape.size, BASE_H);
+          ctx.quadraticCurveTo(sx, BASE_H - shape.size * 2, sx + shape.size * 2, BASE_H);
+          ctx.fill();
+        } else if (shape.type === 'tree') {
+          ctx.beginPath();
+          ctx.arc(sx, shape.y, shape.size, 0, Math.PI);
+          ctx.fill();
+        } else if (shape.type === 'hill') {
+          ctx.beginPath();
+          ctx.ellipse(sx, shape.y, shape.size, shape.size * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+}
+
+// Helper function to spawn dust motes in light beams
+function spawnDustMotesInBeam(beamX, beamWidth, count) {
+  for (let i = 0; i < count; i++) {
+    dustMotes.push({
+      x: beamX + Math.random() * beamWidth - camera.x,
+      y: Math.random() * BASE_H,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.3) * 0.2,
+      life: 120 + Math.random() * 60,
+      maxLife: 120 + Math.random() * 60,
+      size: 1 + Math.random() * 0.5
+    });
+  }
+}
+
 function drawBackground() {
   if (currentLevel === 3) {
     // Thornwood Canopy — brighter, golden-green canopy sky
@@ -5201,6 +7516,11 @@ function drawBackground() {
       ctx.lineTo(bx + 40 + i * 8, BASE_H);
       ctx.lineTo(bx - 10 + i * 8, BASE_H);
       ctx.fill();
+
+      // Spawn dust motes in sunbeams every few frames
+      if (frameCount % 6 === i % 6) {
+        spawnDustMotesInBeam(bx + camera.x, 30, 3);
+      }
     }
     // Player golden glow when in sunbeam
     let playerSX = player.x - camera.x;
@@ -5262,6 +7582,53 @@ function drawBackground() {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, BASE_W, BASE_H);
 
+    // Parallax layers for Level 1: Dark Mountains, Mid-ground Trees, Fog
+    // Layer 0: Distant dark mountains (slowest parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#0a0a15';
+    for (let x = -500; x < COLS * TILE + 500; x += 300) {
+      const mx = x - camera.x * 0.1;
+      const h = 80 + Math.sin(mx * 0.01) * 40;
+      ctx.beginPath();
+      ctx.moveTo(mx - 120, BASE_H);
+      ctx.quadraticCurveTo(mx, BASE_H - h, mx + 120, BASE_H);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 1: Mid-ground silhouette trees (0.3x parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#1a1010';
+    for (let x = -400; x < COLS * TILE + 400; x += 250) {
+      const tx = x - camera.x * 0.3;
+      ctx.beginPath();
+      ctx.moveTo(tx, BASE_H);
+      ctx.lineTo(tx - 30, BASE_H - 80);
+      ctx.lineTo(tx + 30, BASE_H - 80);
+      ctx.fill();
+      // Simple foliage shape
+      ctx.beginPath();
+      ctx.arc(tx, BASE_H - 85, 35, 0, Math.PI);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 2: Fog layer (0.5x parallax, semi-transparent)
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#1a1a2a';
+    const fogScroll = camera.x * 0.5;
+    for (let y = BASE_H - 100; y < BASE_H; y += 40) {
+      for (let x = -100; x < BASE_W + 100; x += 150) {
+        ctx.beginPath();
+        ctx.ellipse(x - (fogScroll % 150), y, 80, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
     // Dappled light beams - duskier tone
     ctx.save();
     for (let i = 0; i < 6; i++) {
@@ -5317,6 +7684,51 @@ function drawBackground() {
     ctx.beginPath(); ctx.arc(BASE_W * 0.75 + 12, 85, 5, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
 
+    // Parallax layers for Level 2: Distant Cliffs, Waterfall Mist, Clouds
+    // Layer 0: Distant cliffs (very slow parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#0a0f1a';
+    for (let x = -600; x < COLS * TILE + 600; x += 400) {
+      const cx = x - camera.x * 0.1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 150, BASE_H);
+      ctx.quadraticCurveTo(cx - 50, BASE_H - 120, cx, BASE_H - 150);
+      ctx.quadraticCurveTo(cx + 50, BASE_H - 120, cx + 150, BASE_H);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 1: Waterfall mist (mid parallax 0.3x)
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = '#8899bb';
+    for (let x = -200; x < COLS * TILE + 200; x += 300) {
+      const mx = x - camera.x * 0.3;
+      for (let y = BASE_H * 0.3; y < BASE_H; y += 50) {
+        ctx.beginPath();
+        ctx.arc(mx, y, 40 + Math.sin(y * 0.01) * 20, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // Layer 2: Cloud layer (0.5x parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.05;
+    ctx.fillStyle = '#7788aa';
+    const cloudScroll = camera.x * 0.5;
+    for (let x = -200; x < BASE_W + 200; x += 200) {
+      const cx = x - (cloudScroll % 200);
+      ctx.beginPath();
+      ctx.ellipse(cx, BASE_H * 0.2, 80, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(cx + 50, BASE_H * 0.25, 60, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
     // Dappled light beams - moonlit
     ctx.save();
     for (let i = 0; i < 6; i++) {
@@ -5351,6 +7763,51 @@ function drawBackground() {
     grad.addColorStop(1, '#0d0818');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+    // Parallax layers for Level 4: Deep Cave Background, Stalactite Shadows, Underground Fog
+    // Layer 0: Deep cave background glow (slow parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.fillStyle = '#1a0a2a';
+    const glowScroll = camera.x * 0.1;
+    for (let x = -300; x < BASE_W + 300; x += 400) {
+      const gx = x - glowScroll;
+      ctx.beginPath();
+      ctx.ellipse(gx, BASE_H * 0.6, 200, 150, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 1: Stalactite silhouettes (mid parallax 0.3x)
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = '#080408';
+    const stalactiteScroll = camera.x * 0.3;
+    for (let x = -100; x < BASE_W + 100; x += 80) {
+      const sx = x - stalactiteScroll;
+      const h = 50 + Math.sin(sx * 0.02) * 30;
+      ctx.beginPath();
+      ctx.moveTo(sx - 10, 0);
+      ctx.lineTo(sx, h);
+      ctx.lineTo(sx + 10, 0);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 2: Underground fog (0.5x parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    ctx.fillStyle = '#1a0a1a';
+    const fogScroll2 = camera.x * 0.5;
+    for (let y = BASE_H * 0.4; y < BASE_H; y += 60) {
+      for (let x = -150; x < BASE_W + 150; x += 200) {
+        ctx.beginPath();
+        ctx.ellipse(x - (fogScroll2 % 200), y, 100, 25, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
     // Bioluminescent glow spots
     ctx.save();
     for (let i = 0; i < 8; i++) {
@@ -5401,6 +7858,54 @@ function drawBackground() {
     grad.addColorStop(1, '#0a0202');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, BASE_W, BASE_H);
+
+    // Parallax layers for Level 5: Throne Room Walls, Torchlight Flicker, Smoke Haze
+    // Layer 0: Throne room walls (slow parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#1a0a08';
+    const wallScroll = camera.x * 0.1;
+    for (let x = -200; x < COLS * TILE + 200; x += 300) {
+      const wx = x - wallScroll;
+      ctx.fillRect(wx, BASE_H * 0.5, 150, BASE_H * 0.5);
+      // Wall texture
+      ctx.globalAlpha = 0.08;
+      ctx.fillStyle = '#0a0400';
+      for (let y = BASE_H * 0.5; y < BASE_H; y += 30) {
+        ctx.fillRect(wx + 10, y, 130, 5);
+      }
+      ctx.globalAlpha = 0.15;
+    }
+    ctx.restore();
+
+    // Layer 1: Distant torchlight flickers (mid parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.12 + Math.sin(frameCount * 0.08) * 0.05;
+    ctx.fillStyle = '#ff6600';
+    const torchScroll = camera.x * 0.3;
+    for (let x = -300; x < COLS * TILE + 300; x += 350) {
+      const tx = x - torchScroll;
+      ctx.beginPath();
+      ctx.arc(tx, BASE_H * 0.3, 40, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Layer 2: Smoke haze (0.5x parallax)
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = '#2a0a0a';
+    const smokeScroll = camera.x * 0.5;
+    for (let x = -200; x < BASE_W + 200; x += 250) {
+      const sx = x - (smokeScroll % 250);
+      for (let y = BASE_H * 0.2; y < BASE_H * 0.7; y += 80) {
+        ctx.beginPath();
+        ctx.ellipse(sx, y, 120, 40, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+
     // Lava glow from below
     ctx.save();
     ctx.globalAlpha = 0.06 + Math.sin(frameCount * 0.02) * 0.03;
@@ -5732,10 +8237,23 @@ function drawDecorations() {
       ctx.arc(sx + 50, d.y + 5, 3, 0, Math.PI * 2);
       ctx.stroke();
     } else if (d.type === 'firefly') {
-      // Glowing firefly
+      // Glowing firefly with light radius glow
       let fx = sx + Math.sin(frameCount * 0.015 + d.phase) * 25;
       let fy = d.y + Math.cos(frameCount * 0.02 + d.phase) * 12;
       let glow = 0.3 + Math.sin(frameCount * 0.08 + d.phase * 3) * 0.3;
+
+      // Firefly light radius (radial glow)
+      ctx.save();
+      let glowRadius = 20 + Math.sin(frameCount * 0.1 + d.phase * 2) * 5;
+      let radialGlow = ctx.createRadialGradient(fx, fy, 0, fx, fy, glowRadius);
+      radialGlow.addColorStop(0, 'rgba(221, 255, 68, 0.25)');
+      radialGlow.addColorStop(0.5, 'rgba(221, 255, 68, 0.08)');
+      radialGlow.addColorStop(1, 'rgba(221, 255, 68, 0)');
+      ctx.fillStyle = radialGlow;
+      ctx.fillRect(fx - glowRadius, fy - glowRadius, glowRadius * 2, glowRadius * 2);
+      ctx.restore();
+
+      // Firefly body
       ctx.save();
       ctx.globalAlpha = glow;
       ctx.fillStyle = '#ddff44';
@@ -5942,8 +8460,20 @@ function drawDecorations() {
       ctx.fill();
       ctx.restore();
     } else if (d.type === 'glowFlower') {
-      // Bioluminescent flower
+      // Bioluminescent flower with light radius
       let glow = 0.4 + Math.sin(frameCount * 0.05 + d.phase) * 0.25;
+
+      // Glow flower light radius
+      ctx.save();
+      let flowerGlowRadius = 25 + Math.sin(frameCount * 0.08 + d.phase * 1.5) * 8;
+      let flowerGlow = ctx.createRadialGradient(sx + 4, d.y - 2, 0, sx + 4, d.y - 2, flowerGlowRadius);
+      flowerGlow.addColorStop(0, `rgba(${d.color === '#ffdd44' ? '255,221,68' : d.color === '#44ff88' ? '68,255,136' : '221,68,255'}, 0.18)`);
+      flowerGlow.addColorStop(0.5, `rgba(${d.color === '#ffdd44' ? '255,221,68' : d.color === '#44ff88' ? '68,255,136' : '221,68,255'}, 0.06)`);
+      flowerGlow.addColorStop(1, `rgba(${d.color === '#ffdd44' ? '255,221,68' : d.color === '#44ff88' ? '68,255,136' : '221,68,255'}, 0)`);
+      ctx.fillStyle = flowerGlow;
+      ctx.fillRect(sx + 4 - flowerGlowRadius, d.y - 2 - flowerGlowRadius, flowerGlowRadius * 2, flowerGlowRadius * 2);
+      ctx.restore();
+
       // Stem
       ctx.fillStyle = '#2a5a22';
       ctx.fillRect(sx + 3, d.y, 2, 10);
@@ -6532,55 +9062,11 @@ function drawFlame(baseX, baseY, height, intensity) {
 }
 
 function drawHUD() {
-  // Heart-based HP display
-  let heartSize = 16;
-  let heartSpacing = 20;
-  let heartStartX = 10;
-  let heartStartY = 12;
-  for (let i = 0; i < player.maxHp; i++) {
-    let hx = heartStartX + i * heartSpacing;
-    let hy = heartStartY;
-    // Pulse animation for last heart when low HP
-    if (i === player.hp - 1 && player.hp <= 2) {
-      let pulse = 1 + Math.sin(frameCount * 0.2) * 0.15;
-      hx -= (pulse - 1) * heartSize / 2;
-      hy -= (pulse - 1) * heartSize / 2;
-      heartSize *= pulse;
-    }
-    ctx.save();
-    if (i < player.hp) {
-      // Full heart
-      ctx.fillStyle = '#ff2244';
-      ctx.beginPath();
-      ctx.moveTo(hx + heartSize/2, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx + heartSize/2, hy, hx, hy, hx, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx, hy + heartSize * 0.6, hx + heartSize/2, hy + heartSize * 0.85, hx + heartSize/2, hy + heartSize);
-      ctx.bezierCurveTo(hx + heartSize/2, hy + heartSize * 0.85, hx + heartSize, hy + heartSize * 0.6, hx + heartSize, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx + heartSize, hy, hx + heartSize/2, hy, hx + heartSize/2, hy + heartSize * 0.35);
-      ctx.fill();
-      // Shine
-      ctx.fillStyle = '#ff6688';
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath();
-      ctx.arc(hx + heartSize * 0.35, hy + heartSize * 0.35, 3, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // Empty heart (dark outline)
-      ctx.strokeStyle = '#662233';
-      ctx.lineWidth = 1.5;
-      ctx.fillStyle = '#220a0a';
-      ctx.beginPath();
-      ctx.moveTo(hx + heartSize/2, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx + heartSize/2, hy, hx, hy, hx, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx, hy + heartSize * 0.6, hx + heartSize/2, hy + heartSize * 0.85, hx + heartSize/2, hy + heartSize);
-      ctx.bezierCurveTo(hx + heartSize/2, hy + heartSize * 0.85, hx + heartSize, hy + heartSize * 0.6, hx + heartSize, hy + heartSize * 0.35);
-      ctx.bezierCurveTo(hx + heartSize, hy, hx + heartSize/2, hy, hx + heartSize/2, hy + heartSize * 0.35);
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.restore();
-    heartSize = 16; // reset after pulse
-  }
+  // BATCH 4: Draw progress bar first at top
+  drawProgressBar();
+
+  // BATCH 4: Animated heart containers (replaces old heart loop)
+  drawHUD_AnimatedHearts();
 
   // Score (with shadow for readability on bright sky)
   ctx.font = 'bold 18px monospace';
@@ -6777,6 +9263,366 @@ function drawHUD() {
     ctx.textAlign = 'left';
     ctx.fillText(`COMBO x${player.comboCount}`, 16, BASE_H - 25);
   }
+
+  // BATCH 4: Additional HUD elements (screen-space)
+  drawGemSparkles();
+  drawScorePopups();
+  drawPotionCooldownAnimation();
+  drawXPBar();
+}
+
+// Draw level-specific ambient effects
+function drawLevelAmbientEffects() {
+  // Level 1: Owl eyes in dark trees and wolf howl vignette
+  if (currentLevel === 1) {
+    // Draw owl eyes
+    for (let eye of owlEyes) {
+      let sx = eye.x - camera.x;
+      let sy = eye.y - camera.y;
+
+      // Determine blink state
+      let eyeOpenAmount = 1;
+      if (eye.blinkCounter > eye.blinkTimer - 5) {
+        // Blinking animation
+        let blinkProgress = (eye.blinkCounter - (eye.blinkTimer - 5)) / 5;
+        eyeOpenAmount = Math.max(0, 1 - blinkProgress * 2);
+      }
+
+      if (eyeOpenAmount > 0) {
+        // Draw pair of glowing yellow eyes
+        ctx.save();
+        ctx.fillStyle = '#ffff00';
+        ctx.shadowColor = '#ffff00';
+        ctx.shadowBlur = 8;
+
+        // Left eye
+        ctx.beginPath();
+        ctx.arc(sx - 5, sy, 4 * eyeOpenAmount, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Right eye
+        ctx.beginPath();
+        ctx.arc(sx + 5, sy, 4 * eyeOpenAmount, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pupils (smaller, darker)
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(sx - 5, sy, 2 * eyeOpenAmount, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(sx + 5, sy, 2 * eyeOpenAmount, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
+
+    // Draw wolf howl vignette (edge darkening)
+    if (wolfHowlVignette > 0) {
+      ctx.save();
+      ctx.globalAlpha = wolfHowlVignette;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, BASE_W, BASE_H);
+      ctx.restore();
+    }
+  }
+
+  // Level 2: Waterfall spray mist, fish jumps, and rainbow
+  if (currentLevel === 2) {
+    let waterSurfY = GROUND_Y * TILE;
+
+    // Draw waterfall mists
+    for (let mist of waterfallMists) {
+      let mistX = mist.x - camera.x;
+      if (mistX < -100 || mistX > BASE_W + 100) continue;
+
+      ctx.save();
+      ctx.globalAlpha = 0.15;
+      ctx.fillStyle = '#ffffff';
+      for (let p of mist.particles) {
+        let px = mistX + p.x;
+        let py = mist.y + p.y;
+        ctx.beginPath();
+        ctx.arc(px, py, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Draw fish jumps
+    for (let fish of fishJumps) {
+      if (!fish.active) continue;
+      let fishX = fish.x - camera.x;
+      if (fishX < -50 || fishX > BASE_W + 50) continue;
+
+      let jumpProgress = (fish.phase % 30) / 30;
+      let jumpArc = Math.sin(jumpProgress * Math.PI) * 40;
+
+      ctx.save();
+      ctx.fillStyle = '#4488aa';
+      ctx.globalAlpha = 0.6;
+      ctx.translate(fishX, waterSurfY - jumpArc);
+      ctx.rotate(-jumpProgress * Math.PI * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.quadraticCurveTo(0, -4, -8, 0);
+      ctx.quadraticCurveTo(0, 4, 8, 0);
+      ctx.fill();
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(-8, 0);
+      ctx.lineTo(-14, -4);
+      ctx.lineTo(-14, 4);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Draw rainbow arc near waterfall
+    if (rainbowDecoration) {
+      let rainbowX = rainbowDecoration.x - camera.x;
+      let rainbowY = rainbowDecoration.y;
+
+      ctx.save();
+      let colors = ['#ff0000', '#ff7f00', '#ffff00', '#00ff00', '#0000ff', '#4b0082', '#9400d3'];
+      for (let i = 6; i >= 0; i--) {
+        ctx.globalAlpha = 0.08;
+        ctx.strokeStyle = colors[i];
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(rainbowX, rainbowY, 20 + i * 4, Math.PI, 0);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // Level 3: Butterflies and blooming flowers
+  if (currentLevel === 3) {
+    // Draw butterflies
+    for (let butterfly of butterflies) {
+      let bx = butterfly.x - camera.x;
+      let by = butterfly.y;
+
+      if (bx < -30 || bx > BASE_W + 30) continue;
+
+      ctx.save();
+      ctx.translate(bx, by);
+
+      // Butterfly wings (colored shapes)
+      let wingFlap = Math.sin(butterfly.phase * 2) * 0.3 + 0.7;
+      ctx.globalAlpha = 0.8;
+
+      // Left wing
+      ctx.fillStyle = '#ff88dd';
+      ctx.beginPath();
+      ctx.ellipse(-4 * wingFlap, 0, 6, 8, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Right wing
+      ctx.beginPath();
+      ctx.ellipse(4 * wingFlap, 0, 6, 8, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Body
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(-1, -3, 2, 6);
+
+      ctx.restore();
+    }
+
+    // Draw blooming flowers
+    for (let flower of bloomingFlowers) {
+      let fx = flower.x - camera.x;
+      let fy = flower.y;
+
+      ctx.save();
+
+      // Stem
+      ctx.fillStyle = '#2a5a22';
+      ctx.fillRect(fx + 3, fy, 2, 10);
+
+      // Petals that bloom outward
+      if (flower.bloomAmount > 0) {
+        let petalSize = 3 * flower.bloomAmount;
+        let petalColors = ['#ff6699', '#ff9999', '#ffcc99'];
+
+        for (let p = 0; p < 5; p++) {
+          let angle = (Math.PI * 2 * p) / 5;
+          let px = fx + 4 + Math.cos(angle) * 6 * flower.bloomAmount;
+          let py = fy - 5 + Math.sin(angle) * 6 * flower.bloomAmount;
+
+          ctx.fillStyle = petalColors[p % 3];
+          ctx.globalAlpha = 0.7 + Math.sin(frameCount * 0.03 + p) * 0.2;
+          ctx.beginPath();
+          ctx.ellipse(px, py, petalSize, petalSize, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Center
+        ctx.fillStyle = '#ffff00';
+        ctx.globalAlpha = 0.9;
+        ctx.beginPath();
+        ctx.arc(fx + 4, fy - 5, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+  }
+
+  // Level 4: Dripping stalactites, glowing mushrooms, and echo ripples
+  if (currentLevel === 4) {
+    // Draw stalactite drips
+    for (let stalactite of drippingStalactites) {
+      let stX = stalactite.x - camera.x;
+      let stY = stalactite.y;
+
+      if (stX < -50 || stX > BASE_W + 50) continue;
+
+      // Draw stalactite shape
+      ctx.save();
+      ctx.fillStyle = '#663333';
+      ctx.beginPath();
+      ctx.moveTo(stX - 4, stY);
+      ctx.lineTo(stX - 2, stY + 20);
+      ctx.lineTo(stX + 2, stY + 20);
+      ctx.lineTo(stX + 4, stY);
+      ctx.fill();
+      ctx.restore();
+
+      // Draw water drop if not on cooldown
+      if (stalactite.dropTimer < 10) {
+        let dropY = stY + 20 + (10 - stalactite.dropTimer) * 8;
+        ctx.save();
+        ctx.fillStyle = '#4488ff';
+        ctx.globalAlpha = 0.6;
+        ctx.beginPath();
+        ctx.arc(stX, dropY, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // Draw glowing mushrooms
+    for (let mushroom of glowingMushrooms) {
+      let mx = mushroom.x - camera.x;
+      let my = mushroom.y;
+
+      if (mx < -30 || mx > BASE_W + 30) continue;
+
+      let glow = 0.5 + Math.sin(mushroom.glowPhase) * 0.3;
+
+      ctx.save();
+      // Glow aura
+      ctx.globalAlpha = glow * 0.2;
+      ctx.fillStyle = '#00ffff';
+      ctx.beginPath();
+      ctx.arc(mx + 4, my - 5, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Mushroom cap
+      ctx.globalAlpha = 0.8;
+      ctx.fillStyle = '#00cccc';
+      ctx.beginPath();
+      ctx.ellipse(mx + 4, my - 3, 6, 4, 0, Math.PI, 0);
+      ctx.fill();
+
+      // Stem
+      ctx.fillStyle = '#333333';
+      ctx.fillRect(mx + 3, my - 2, 2, 8);
+
+      ctx.restore();
+    }
+
+    // Draw cave echo ripples
+    for (let i = caveEchoRipples.length - 1; i >= 0; i--) {
+      let ripple = caveEchoRipples[i];
+      let rx = ripple.x - camera.x;
+      let ry = ripple.y;
+
+      ctx.save();
+      let progress = 1 - ripple.life / ripple.maxLife;
+      ctx.globalAlpha = (1 - progress) * 0.1;
+      ctx.strokeStyle = '#8888ff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(rx, ry, ripple.radius * progress, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Level 5: Throne room torches, ground fog, and crumbling debris
+  if (currentLevel === 5) {
+    // Draw throne room torches
+    for (let torch of throneRoomTorches) {
+      let tx = torch.x - camera.x;
+      let ty = torch.y;
+
+      ctx.save();
+      // Torch post
+      ctx.fillStyle = '#4a3018';
+      ctx.fillRect(tx - 3, ty, 6, 40);
+
+      // Flame
+      let flameFlicker = Math.sin(torch.flamePhase) * 2;
+      ctx.fillStyle = '#ff6600';
+      ctx.beginPath();
+      ctx.moveTo(tx - 2, ty);
+      ctx.quadraticCurveTo(tx - 1 + flameFlicker, ty - 15, tx + 2, ty);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffaa22';
+      ctx.beginPath();
+      ctx.moveTo(tx - 1, ty);
+      ctx.quadraticCurveTo(tx + flameFlicker, ty - 10, tx + 1, ty);
+      ctx.fill();
+
+      // Torch glow
+      ctx.globalAlpha = 0.1 + Math.sin(torch.flamePhase * 2) * 0.05;
+      ctx.fillStyle = '#ffaa00';
+      ctx.beginPath();
+      ctx.arc(tx, ty - 5, 20, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // Draw ground fog
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#ccccdd';
+    for (let fog of groundFog) {
+      let fx = fog.x + fog.driftX - camera.x;
+      let fy = fog.y;
+
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, 20, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Draw crumbling debris
+    for (let debris of crumblingDebris) {
+      let dx = debris.x - camera.x;
+      let dy = debris.y;
+
+      if (dx < -50 || dx > BASE_W + 50 || dy > GROUND_Y * TILE + 100) continue;
+
+      ctx.save();
+      ctx.fillStyle = '#666666';
+      ctx.fillRect(dx - 4, dy, 8, 8);
+
+      // Dust trail
+      ctx.globalAlpha = Math.max(0, 1 - debris.life / debris.maxLife) * 0.3;
+      ctx.fillStyle = '#999999';
+      for (let d = 0; d < 3; d++) {
+        ctx.fillRect(dx + Math.sin(debris.y + d) * 3 - 2, dy - d * 5, 4, 2);
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function draw() {
@@ -6805,9 +9651,12 @@ function draw() {
   drawBackground();
 
   // Camera vertical offset — applied to world-space elements only
-  ctx.translate(0, -camera.y);
+  ctx.translate(screenShake.x, -camera.y + screenShake.y);
 
   drawDecorations();
+
+  // Draw level-specific ambient effects
+  drawLevelAmbientEffects();
 
   // Tiles
   for (const t of tiles) drawTile(t);
@@ -7611,23 +10460,64 @@ function draw() {
     ctx.restore();
   }
 
-  // Collectibles
+  // Collectibles with BATCH 5 visual effects
   for (const c of collectibles) {
     if (!c.alive) continue;
     let sx = c.x - camera.x;
     if (sx < -20 || sx > BASE_W + 20) continue;
     let bob = Math.sin(frameCount * 0.06 + c.x * 0.1) * 3;
+    let screenY = c.y + bob;
+
     if (c.type === 'gem') {
-      drawPixelArt(GEM, sx, c.y + bob, 3, false);
+      // BATCH 5: Gem rotation & sparkle
+      ctx.save();
+      let centerX = sx + 6; // GEM is 12px wide at scale 3 = 36px
+      let centerY = screenY + 6; // GEM is 16px tall at scale 3 = 48px
+
+      // 3D rotation effect using cosine squish
+      let rotationAmount = Math.cos(frameCount * 0.1) * 0.3;
+      ctx.translate(centerX, centerY);
+      ctx.scale(1 + rotationAmount, 1 - rotationAmount * 0.5); // squish horizontally for 3D effect
+      ctx.translate(-centerX, -centerY);
+
+      drawPixelArt(GEM, sx, screenY, 3, false);
+      ctx.restore();
+
+      // Gem sparkles (small white dots around gem)
+      if (frameCount % 6 === 0) {
+        spawnGemSparkles(c.x, c.y);
+      }
+
     } else if (c.type === 'heart') {
-      drawPixelArt(HEART, sx, c.y + bob, 2, false);
+      // BATCH 5: Health pickup glow effect underneath
+      let glowRadius = 14 + Math.sin(frameCount * 0.08) * 3;
+      let glowAlpha = 0.3 + Math.sin(frameCount * 0.08) * 0.2;
+
+      let grad = ctx.createRadialGradient(sx + 8, screenY + 8, 0, sx + 8, screenY + 8, glowRadius);
+      grad.addColorStop(0, `rgba(255, 100, 150, ${glowAlpha})`);
+      grad.addColorStop(1, `rgba(255, 100, 150, 0)`);
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(sx + 8, screenY + 8, glowRadius, 0, Math.PI * 2);
+      ctx.fill();
+
+      drawPixelArt(HEART, sx, screenY, 2, false);
     }
   }
+
+  // Draw collection effects (bursts and glows)
+  drawCollectibleEffects();
 
   // Sanctuary Flame (Brazier)
   drawBrazier();
 
   // Dead enemy animations (ragdoll tumble)
+  // Batch 2 visual effects - draw before dead enemies
+  drawDyingEnemies();
+  drawHitSparks();
+  drawHitSplatters();
+
   for (const de of deadEnemies) {
     let sx = de.x - camera.x;
     if (sx < -40 || sx > BASE_W + 40) continue;
@@ -8270,6 +11160,11 @@ function draw() {
     }
 
     ctx.restore();
+    
+    // Draw boss health bar if this is a boss
+    if (e.type === 'knight' || (e.boss !== undefined && e.boss)) {
+      drawBossHealthBar(e);
+    }
   }
 
   // Arrow projectiles
@@ -8491,6 +11386,27 @@ function draw() {
   drawPixelArt(sprite, drawX, drawY, 3, player.facing < 0);
   ctx.restore();
 
+  // Damage flash — red overlay tint
+  if (playerDamageFlash > 0) {
+    ctx.save();
+    ctx.globalAlpha = (playerDamageFlash / 10) * 0.4;
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(drawX, drawY - player.breathOffset, spriteW, spriteH);
+    ctx.restore();
+    playerDamageFlash--;
+  }
+
+  // Dodge roll afterimages
+  for (let i = 0; i < dodgeRollAfterimages.length; i++) {
+    let img = dodgeRollAfterimages[i];
+    ctx.save();
+    ctx.globalAlpha = (img.life / img.maxLife) * 0.3;
+    let imgDrawX = img.x - 4 - camera.x;
+    let imgDrawY = img.y - 2;
+    drawPixelArt(img.sprite, imgDrawX, imgDrawY, 3, img.facing < 0);
+    ctx.restore();
+  }
+
   // Sword slash arc when attacking
   if (player.attacking && player.attackTimer > 4) {
     let slashProgress = 1 - (player.attackTimer / 15);
@@ -8523,11 +11439,24 @@ function draw() {
     ctx.restore();
   }
 
-  // Shield raised when blocking — draw actual shield in front of player
+  // Shield raised when blocking — draw actual shield in front of player with shimmer
   if (player.blocking) {
     let shieldFacing = player.facing;
     let shX = shieldFacing > 0 ? px - 4 : px + player.w - 8;
     let shY = player.y + 2;
+
+    // Circular shield glow backdrop
+    ctx.save();
+    let shieldCX = shX + 6;
+    let shieldCY = shY + 13;
+    let glowAlpha = 0.2 + Math.sin(frameCount * 0.15) * 0.1;
+    ctx.globalAlpha = glowAlpha;
+    ctx.fillStyle = '#88ccff';
+    ctx.beginPath();
+    ctx.arc(shieldCX, shieldCY, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     // Shield body — rounded rectangle
     ctx.fillStyle = '#4488cc';
     ctx.fillRect(shX, shY + 2, 12, 22);
@@ -8543,18 +11472,34 @@ function draw() {
     // Metallic highlight
     ctx.fillStyle = 'rgba(200, 230, 255, 0.3)';
     ctx.fillRect(shX + 2, shY + 3, 4, 10);
-    // Energy shimmer effect
+    // Energy shimmer effect with pulse
     let shimmer = Math.sin(frameCount * 0.2) * 0.2 + 0.15;
+    ctx.save();
     ctx.globalAlpha = shimmer;
     ctx.fillStyle = '#88ddff';
     ctx.fillRect(shX - 1, shY, 14, 25);
-    ctx.globalAlpha = 1;
+    ctx.restore();
     // Sparkle particles
     ctx.fillStyle = 'rgba(180, 230, 255, 0.6)';
     let sparkX = shX + 6 + Math.sin(frameCount * 0.3) * 4;
     let sparkY = shY + 6 + Math.cos(frameCount * 0.25) * 6;
     ctx.fillRect(sparkX, sparkY, 2, 2);
     ctx.fillRect(sparkX - 4, sparkY + 8, 2, 2);
+    // Subtle shimmer waves across shield
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = '#aaddff';
+    ctx.lineWidth = 1;
+    let waveOffset = frameCount * 0.08;
+    ctx.beginPath();
+    ctx.moveTo(shX, shY + 5 + Math.sin(waveOffset) * 2);
+    ctx.quadraticCurveTo(shX + 6, shY + 3, shX + 12, shY + 5 + Math.sin(waveOffset + Math.PI/2) * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(shX, shY + 15 + Math.sin(waveOffset + Math.PI) * 2);
+    ctx.quadraticCurveTo(shX + 6, shY + 13, shX + 12, shY + 15 + Math.sin(waveOffset + 3*Math.PI/2) * 2);
+    ctx.stroke();
+    ctx.restore();
   }
   ctx.restore();
 
@@ -8582,6 +11527,90 @@ function draw() {
   }
 
 
+
+  // Player visual effects (dust puffs, slash arcs, etc.)
+  for (const effect of playerVisualEffects) {
+    if (effect.type === 'dust') {
+      ctx.save();
+      ctx.globalAlpha = effect.life / effect.maxLife * 0.8;
+      ctx.fillStyle = effect.color;
+      ctx.fillRect(effect.x - camera.x, effect.y, effect.size, effect.size);
+      ctx.restore();
+    } else if (effect.type === 'slashArc') {
+      // Draw sword slash arc
+      let slashProgress = 1 - (effect.life / effect.maxLife);
+      let startAngle = -Math.PI * 0.6 + slashProgress * Math.PI * 1.2;
+      let endAngle = startAngle + Math.PI * 0.4;
+      let slashCX = effect.x - camera.x;
+      let slashCY = effect.y;
+      ctx.save();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.7 * (effect.life / effect.maxLife);
+      ctx.beginPath();
+      if (effect.facing > 0) {
+        ctx.arc(slashCX, slashCY, 22, startAngle, endAngle);
+      } else {
+        ctx.arc(slashCX, slashCY, 22, Math.PI - endAngle, Math.PI - startAngle);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Dust motes in light beams
+  for (let i = dustMotes.length - 1; i >= 0; i--) {
+    const dm = dustMotes[i];
+    dm.x += dm.vx;
+    dm.y += dm.vy;
+    dm.life--;
+    if (dm.life <= 0) {
+      dustMotes.splice(i, 1);
+    } else {
+      ctx.save();
+      ctx.globalAlpha = (dm.life / dm.maxLife) * 0.4;
+      ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
+      ctx.beginPath();
+      ctx.arc(dm.x, dm.y, dm.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Water ripples in shallow water areas (Level 2)
+  for (let i = waterRipples.length - 1; i >= 0; i--) {
+    const wr = waterRipples[i];
+    wr.life--;
+    if (wr.life <= 0) {
+      waterRipples.splice(i, 1);
+    } else {
+      const progress = 1 - (wr.life / wr.maxLife);
+      ctx.save();
+      ctx.globalAlpha = (wr.life / wr.maxLife) * 0.3;
+      ctx.strokeStyle = 'rgba(100, 180, 220, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(wr.x - camera.x, wr.y, progress * wr.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // Foam particles on water
+  for (let i = foamParticles.length - 1; i >= 0; i--) {
+    const fp = foamParticles[i];
+    fp.life--;
+    if (fp.life <= 0) {
+      foamParticles.splice(i, 1);
+    } else {
+      const bobY = Math.sin(fp.bobPhase) * 2;
+      ctx.save();
+      ctx.globalAlpha = (fp.life / fp.maxLife) * 0.6;
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.fillRect(fp.x - camera.x, fp.y + bobY, 3, 2);
+      ctx.restore();
+    }
+  }
 
   // Particles
   for (const p of particles) {
@@ -8775,7 +11804,30 @@ function draw() {
     screenFlash.alpha -= 0.04;
   }
 
+  // Batch 2: Draw alert indicators and damage numbers before HUD
+  drawAlertIndicators();
+  drawDamageNumbers();
+
+  // BATCH 6: Death animation
+  if (deathAnimation.active) {
+    deathAnimation.draw(ctx, BASE_W, BASE_H);
+  }
+
+  // BATCH 6: Level celebration particles (world space)
+  if (levelCelebration.active) {
+    levelCelebration.draw(ctx, BASE_W, BASE_H, camera.x, camera.y);
+  }
+
+  // BATCH 4: Level title card (drawn before HUD)
+  drawLevelTitleCard();
+
   drawHUD();
+  // Boss entrance card (drawn last, at screen scale)
+  drawBossEntranceCard();
+
+  // BATCH 6: Screen fade (drawn LAST, on top of everything)
+  screenFade.draw(ctx, BASE_W, BASE_H);
+
   ctx.restore();
 }
 
@@ -8788,6 +11840,10 @@ function gameLoop() {
     } else {
       update();
     }
+    // BATCH 6: Level celebration update
+    if (levelCelebration.active) {
+      levelCelebration.update();
+    }
     draw();
   } else if (gameState === 'paused' || gameState === 'dead' || gameState === 'levelcomplete') {
     draw(); // keep showing the level behind overlays
@@ -8795,6 +11851,15 @@ function gameLoop() {
     // menu / levelselect / win — clear canvas with dark background
     ctx.fillStyle = '#0a1a0a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // BATCH 6: Menu background and button hover
+    if (gameState === 'menu') {
+      menuBackground.update();
+      buttonHover.update();
+      menuBackground.draw(ctx, BASE_W, BASE_H);
+    } else if (gameState === 'levelselect') {
+      lockedLevelShimmer.update();
+      buttonHover.update();
+    }
   }
   requestAnimationFrame(gameLoop);
 }
@@ -8808,6 +11873,9 @@ function hideAllScreens() {
 
 function showMainMenu() {
   hideAllScreens();
+  // BATCH 6: Initialize menu background
+  menuBackground.init();
+  buttonHover.init();
   document.getElementById('mainMenu').classList.remove('hidden');
   gameState = 'menu';
   // Update continue button text based on save
@@ -8953,15 +12021,37 @@ function startLevel(lvl) {
   currentLevel = lvl;
   score = 0;
   particles = []; scorePopups = []; deadEnemies = []; afterimages = []; projectiles = [];
+  hitSparks = []; dyingEnemies_batch2 = []; damageNumbers = []; alertIndicators = []; hitSplatters = [];
+  screenShake = { x: 0, y: 0, intensity: 0, decayRate: 0.9 };
+  bossEntranceCard = null;
   swordTrail = []; splashes = []; grassSwirls = [];
   damageFlash = 0; checkpoint = null; respawnPoint = { x: 80, y: 300 };
   screenFlash = { alpha: 0, color: '#fff' };
   frameCount = 0; camera.x = 0; camera.y = 0; shakeTimer = 0;
   hitStop = 0; respawnFlash = 0;
+
+  // BATCH 4: Initialize UI/HUD variables
+  gemSparkles = [];
+  heartLossTimer = 0;
+  lastHeartCount = 0;
+  lastKillTime = 0;
+  comboMultiplier = 1;
+  xpGlowSweep = { active: false, timer: 0, duration: 20 };
+  potionCooldowns = {};
+
   resetPlayer();
   generateLevel();
   totalGems = collectibles.filter(c => c.type === 'gem').length;
   collectedGems = 0;
+
+  // BATCH 4: Set progress bar max width
+  maxLevelWidth = COLS * TILE;
+
+  // BATCH 4: Show level title card
+  let levelName = currentLevel === 0 ? 'TUTORIAL' : `LEVEL ${currentLevel}`;
+  let levelSubtitle = currentLevel === 0 ? 'Learn the controls' : 'Defeat all enemies';
+  showLevelTitleCard(levelName, levelSubtitle);
+
   gameState = 'playing';
   levelTitleTimer = 180; // 3 seconds for level title card
   cameraZoom = 1.0; // Reset camera zoom
