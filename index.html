@@ -3732,11 +3732,13 @@ function update() {
         scorePopups.push({ x: e.x, y: e.y - 30, text: 'INVINCIBLE!', life: 40 });
       }
 
-      // Show exit portal when boss dies
+      // Show exit portal when boss dies - Sanctuary Flame ignites
       if (!e.alive && exitPortal && exitPortal.hidden) {
         exitPortal.hidden = false;
-        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 20, 8);
-        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'EXIT OPENED!', life: 90 });
+        // Dramatic burst of golden light
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'FLAME IGNITED!', life: 90 });
       }
 
     } else if (e.type === 'dryad_boss') {
@@ -6372,49 +6374,161 @@ function drawDecorations() {
   }
 }
 
-function drawPortal() {
+function countAliveEnemies() {
+  return enemies.filter(e => e.alive).length;
+}
+
+function drawBrazier() {
   if (!exitPortal) return;
   let sx = exitPortal.x - camera.x;
   if (sx < -80 || sx > BASE_W + 80) return;
 
-  let pulse = Math.sin(frameCount * 0.08) * 0.3 + 0.7;
+  let brazierCx = sx + TILE;
+  let brazierCy = exitPortal.y + TILE;
+  let isActive = countAliveEnemies() === 0;
+
   ctx.save();
-  ctx.globalAlpha = pulse;
 
-  // Outer glow
-  ctx.fillStyle = '#44ff88';
-  ctx.shadowColor = '#44ff88';
-  ctx.shadowBlur = 20;
-  ctx.beginPath();
-  ctx.ellipse(sx + TILE, exitPortal.y + TILE, TILE + 4, TILE + 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Inner
-  ctx.fillStyle = '#aaffcc';
-  ctx.shadowBlur = 10;
-  ctx.beginPath();
-  ctx.ellipse(sx + TILE, exitPortal.y + TILE, TILE - 8, TILE - 2, 0, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Swirl
-  ctx.strokeStyle = '#ffffff';
+  // Stone base (trapezoid) - wider at bottom
+  ctx.fillStyle = '#666666';
+  ctx.strokeStyle = '#444444';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  for (let a = 0; a < Math.PI * 4; a += 0.1) {
-    let r = (a / (Math.PI * 4)) * (TILE - 10);
-    let px = sx + TILE + Math.cos(a + frameCount * 0.05) * r;
-    let py = exitPortal.y + TILE + Math.sin(a + frameCount * 0.05) * r * 1.2;
-    if (a === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
+  // Top of trapezoid
+  ctx.moveTo(brazierCx - 10, brazierCy - 4);
+  // Right side
+  ctx.lineTo(brazierCx + 10, brazierCy - 4);
+  // Bottom right
+  ctx.lineTo(brazierCx + 16, brazierCy + 8);
+  // Bottom left
+  ctx.lineTo(brazierCx - 16, brazierCy + 8);
+  ctx.closePath();
+  ctx.fill();
   ctx.stroke();
+
+  // Stone rim/edge detail
+  ctx.strokeStyle = '#888888';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(brazierCx - 10, brazierCy - 4);
+  ctx.lineTo(brazierCx + 10, brazierCy - 4);
+  ctx.stroke();
+
+  if (isActive) {
+    // Active: Golden flames and glow
+
+    // Warm glow around brazier
+    ctx.shadowColor = '#ffaa00';
+    ctx.shadowBlur = 30;
+    ctx.fillStyle = 'rgba(255, 200, 0, 0.4)';
+    ctx.beginPath();
+    ctx.arc(brazierCx, brazierCy - 2, 28, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Multiple flame shapes with flickering animation
+    let flameFlicker = Math.sin(frameCount * 0.12) * 0.2 + 0.8;
+
+    // Left flame
+    let lFlameX = brazierCx - 6;
+    let lFlameBaseY = brazierCy - 6;
+    let lFlameHeight = 12 * flameFlicker;
+    drawFlame(lFlameX, lFlameBaseY, lFlameHeight, 0.8);
+
+    // Center flame
+    let cFlameX = brazierCx;
+    let cFlameBaseY = brazierCy - 8;
+    let cFlameHeight = 16 * flameFlicker;
+    drawFlame(cFlameX, cFlameBaseY, cFlameHeight, 1.0);
+
+    // Right flame
+    let rFlameX = brazierCx + 6;
+    let rFlameBaseY = brazierCy - 6;
+    let rFlameHeight = 12 * flameFlicker;
+    drawFlame(rFlameX, rFlameBaseY, rFlameHeight, 0.8);
+
+    // Floating embers
+    for (let i = 0; i < 3; i++) {
+      let emberX = brazierCx + Math.sin(frameCount * 0.08 + i * 2) * 20 - 10;
+      let emberY = brazierCy - 20 - Math.sin(frameCount * 0.06 + i * 1.5) * 15 - (i * 8);
+      let emberLife = (Math.sin(frameCount * 0.04 + i) + 1) / 2;
+
+      ctx.fillStyle = `rgba(255, ${180 + emberLife * 75}, 0, ${emberLife * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(emberX, emberY, 2 + emberLife, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else {
+    // Inactive: Dark stone, maybe cold embers
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+    ctx.shadowBlur = 5;
+
+    // Cold ember glow (dim)
+    ctx.fillStyle = 'rgba(50, 40, 30, 0.3)';
+    ctx.beginPath();
+    ctx.arc(brazierCx, brazierCy - 2, 12, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dark embers inside
+    ctx.fillStyle = '#3a2a1a';
+    for (let i = 0; i < 2; i++) {
+      let emberX = brazierCx - 4 + i * 8;
+      let emberY = brazierCy + 2;
+      ctx.beginPath();
+      ctx.arc(emberX, emberY, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 
   ctx.restore();
 
-  // Label
-  ctx.fillStyle = '#aaffcc';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('EXIT', sx + TILE, exitPortal.y - 10);
+  // Label - only show when active
+  if (isActive) {
+    ctx.fillStyle = '#ffdd44';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 3;
+    ctx.fillText('FLAME', sx + TILE, exitPortal.y - 15);
+  } else {
+    ctx.fillStyle = '#888888';
+    ctx.font = '11px monospace';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 3;
+    ctx.fillText('Brazier', sx + TILE, exitPortal.y - 15);
+  }
+}
+
+function drawFlame(baseX, baseY, height, intensity) {
+  // Draw a flickering flame shape
+  let flameColor = '#ff8800';
+  let tipColor = '#ffdd00';
+
+  // Outer flame (orange)
+  ctx.fillStyle = flameColor;
+  ctx.shadowColor = '#ff6600';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY);
+  ctx.quadraticCurveTo(baseX - 4, baseY - height * 0.3, baseX - 3, baseY - height * 0.6);
+  ctx.quadraticCurveTo(baseX - 1, baseY - height, baseX, baseY - height * 0.9);
+  ctx.quadraticCurveTo(baseX + 1, baseY - height, baseX + 3, baseY - height * 0.6);
+  ctx.quadraticCurveTo(baseX + 4, baseY - height * 0.3, baseX, baseY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Inner flame (yellow/bright)
+  ctx.fillStyle = tipColor;
+  ctx.shadowColor = '#ffff00';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(baseX, baseY - height * 0.1);
+  ctx.quadraticCurveTo(baseX - 2, baseY - height * 0.3, baseX - 1.5, baseY - height * 0.5);
+  ctx.quadraticCurveTo(baseX, baseY - height * 0.75, baseX, baseY - height * 0.6);
+  ctx.quadraticCurveTo(baseX, baseY - height * 0.75, baseX + 1.5, baseY - height * 0.5);
+  ctx.quadraticCurveTo(baseX + 2, baseY - height * 0.3, baseX, baseY - height * 0.1);
+  ctx.closePath();
+  ctx.fill();
 }
 
 function drawHUD() {
@@ -7510,8 +7624,8 @@ function draw() {
     }
   }
 
-  // Portal
-  drawPortal();
+  // Sanctuary Flame (Brazier)
+  drawBrazier();
 
   // Dead enemy animations (ragdoll tumble)
   for (const de of deadEnemies) {
