@@ -3151,10 +3151,35 @@ function generateLevel4() {
   let roomHeight = 8; // Tall enough for interesting vertical play
   let ceilingY = groundY - roomHeight;
 
-  // --- FLOOR (solid ground across full width) ---
+  // --- FLOOR (solid ground across full width, with narrow path section) ---
+  // Create a gap in the middle for narrow path challenge (columns 20-28 will be empty)
+  let gapStartCol = 20;
+  let gapEndCol = 28;
+
   for (let col = 0; col < roomWidth; col++) {
+    // Skip the gap area for the main floor
+    if (col >= gapStartCol && col < gapEndCol) {
+      // Leave this area empty to create the crevice
+      continue;
+    }
     tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
     tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // Add narrow platforms over the gap (2-3 tiles wide at varying heights)
+  let platformPositions = [
+    { col: 20, height: 1 }, // First platform (1 tile lower)
+    { col: 22, height: 2 }, // Middle platform (2 tiles lower)
+    { col: 25, height: 1 }, // Third platform
+  ];
+  for (let p of platformPositions) {
+    tiles.push({ x: p.col * TILE, y: (groundY - p.height) * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: p.col * TILE, y: (groundY - p.height + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // Add some small alcove area below the gap (3-4 tiles down, at columns 23-24)
+  for (let col = 23; col <= 24; col++) {
+    tiles.push({ x: col * TILE, y: (groundY + 3) * TILE, w: TILE, h: TILE, type: 'ground' });
   }
 
   // --- CEILING (solid ground across top, creating enclosed room) ---
@@ -3194,17 +3219,31 @@ function generateLevel4() {
   // Gems spread across the floor (8-10 scattered)
   for (let i = 0; i < 10; i++) {
     let gemCol = 5 + i * 5 + (Math.random() - 0.5) * 3;
-    if (gemCol >= rightWallCol - 2) break;
+    if (gemCol >= rightWallCol - 2 || (gemCol >= 20 && gemCol < 28)) break; // Skip gap area
     collectibles.push({
       x: gemCol * TILE, y: (groundY - 1) * TILE + 4,
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
 
-  // Heart pickup in middle of room
-  let heartX = Math.floor(roomWidth / 2) * TILE;
+  // Gems along the narrow path (reward for tricky jumps)
+  for (let gemCol of [20, 22, 25, 27]) {
+    collectibles.push({
+      x: gemCol * TILE, y: (groundY - 2) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // Heart pickup in middle of room (before the narrow path challenge)
+  let heartX = 15 * TILE;
   collectibles.push({
     x: heartX, y: (groundY - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+
+  // Bonus heart in the alcove below the narrow path (accessible if player drops down)
+  collectibles.push({
+    x: 24 * TILE, y: (groundY + 2) * TILE,
     w: 16, h: 16, type: 'heart', alive: true,
   });
 
@@ -3221,6 +3260,53 @@ function generateLevel4() {
   };
 
   // --- DECORATIONS (to make it feel like inside a hollow tree) ---
+
+  // Spider webs throughout the room (6-8 decorations)
+  // Corner webs (top-left and top-right)
+  decorations.push({
+    x: (leftWallCol + 1) * TILE, y: (ceilingY + 1) * TILE,
+    type: 'spider_web',
+    corner: 'top-left',
+    size: 0.8,
+  });
+  decorations.push({
+    x: (rightWallCol - 2) * TILE, y: (ceilingY + 1) * TILE,
+    type: 'spider_web',
+    corner: 'top-right',
+    size: 0.9,
+  });
+  // Wall webs (left and right walls at various heights)
+  decorations.push({
+    x: (leftWallCol - 1) * TILE, y: (ceilingY + 3) * TILE,
+    type: 'spider_web',
+    corner: 'wall-left',
+    size: 0.6,
+  });
+  decorations.push({
+    x: (leftWallCol - 1) * TILE, y: (ceilingY + 5) * TILE,
+    type: 'spider_web',
+    corner: 'wall-left',
+    size: 0.5,
+  });
+  decorations.push({
+    x: (rightWallCol + 1) * TILE, y: (ceilingY + 4) * TILE,
+    type: 'spider_web',
+    corner: 'wall-right',
+    size: 0.7,
+  });
+  // Ceiling webs (stretched between roots)
+  decorations.push({
+    x: 15 * TILE, y: (ceilingY + 0.5) * TILE,
+    type: 'spider_web',
+    corner: 'ceiling',
+    size: 0.75,
+  });
+  decorations.push({
+    x: 35 * TILE, y: (ceilingY + 0.5) * TILE,
+    type: 'spider_web',
+    corner: 'ceiling',
+    size: 0.8,
+  });
 
   // Hanging roots from ceiling (4-6 decorations)
   let rootSpacing = roomWidth / 6;
@@ -8788,6 +8874,104 @@ function drawDecorations() {
       ctx.beginPath();
       ctx.arc(sx - 3 * d.size, d.y - 2 * d.size, 2 * d.size, 0, Math.PI * 2);
       ctx.fill();
+      ctx.restore();
+    } else if (d.type === 'spider_web') {
+      // Spider web decorations in various orientations
+      ctx.save();
+      ctx.strokeStyle = '#cccccc';
+      ctx.fillStyle = 'rgba(204, 204, 204, 0.35)';
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 1;
+
+      if (d.corner === 'top-left') {
+        // Corner web radiating from top-left
+        let cornerX = sx;
+        let cornerY = d.y;
+        let size = 40 * d.size;
+
+        // Radial lines from corner
+        ctx.strokeStyle = '#cccccc';
+        for (let i = 0; i < 5; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cornerX, cornerY);
+          let angle = (i / 5) * (Math.PI / 2);
+          ctx.lineTo(cornerX + Math.cos(angle) * size, cornerY + Math.sin(angle) * size);
+          ctx.stroke();
+        }
+
+        // Concentric arcs
+        for (let a = 0; a < 3; a++) {
+          let radius = (size * (a + 1)) / 3;
+          ctx.beginPath();
+          ctx.arc(cornerX, cornerY, radius, 0, Math.PI / 2);
+          ctx.stroke();
+        }
+      } else if (d.corner === 'top-right') {
+        // Corner web radiating from top-right
+        let cornerX = sx;
+        let cornerY = d.y;
+        let size = 40 * d.size;
+
+        // Radial lines from corner
+        for (let i = 0; i < 5; i++) {
+          ctx.beginPath();
+          ctx.moveTo(cornerX, cornerY);
+          let angle = Math.PI / 2 + (i / 5) * (Math.PI / 2);
+          ctx.lineTo(cornerX + Math.cos(angle) * size, cornerY + Math.sin(angle) * size);
+          ctx.stroke();
+        }
+
+        // Concentric arcs
+        for (let a = 0; a < 3; a++) {
+          let radius = (size * (a + 1)) / 3;
+          ctx.beginPath();
+          ctx.arc(cornerX, cornerY, radius, Math.PI / 2, Math.PI);
+          ctx.stroke();
+        }
+      } else if (d.corner === 'wall-left' || d.corner === 'wall-right') {
+        // Droopy hammock-style web on walls
+        let webX = sx;
+        let webY = d.y;
+        let size = 25 * d.size;
+
+        ctx.beginPath();
+        ctx.moveTo(webX - size * 0.5, webY - size * 0.3);
+        ctx.quadraticCurveTo(webX, webY + size * 0.5, webX + size * 0.5, webY - size * 0.3);
+        ctx.stroke();
+
+        // Vertical strands
+        for (let i = 0; i < 4; i++) {
+          let x = webX - size * 0.5 + (i / 3) * size;
+          let y1 = webY - size * 0.3;
+          let y2 = webY + size * 0.5 - (i / 3) * size * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(x, y1);
+          ctx.lineTo(x, y2);
+          ctx.stroke();
+        }
+      } else if (d.corner === 'ceiling') {
+        // Stretched ceiling web between roots
+        let webX = sx;
+        let webY = d.y;
+        let size = 50 * d.size;
+
+        // Horizontal strands
+        for (let i = 0; i < 3; i++) {
+          ctx.beginPath();
+          ctx.moveTo(webX - size, webY + i * 8);
+          ctx.lineTo(webX + size, webY + i * 8);
+          ctx.stroke();
+        }
+
+        // Diagonal connecting strands
+        for (let i = 0; i < 8; i++) {
+          ctx.beginPath();
+          ctx.moveTo(webX - size + (i / 8) * size * 2, webY);
+          ctx.lineTo(webX - size + (i / 8) * size * 2 + 10, webY + 16);
+          ctx.stroke();
+        }
+      }
+
       ctx.restore();
     } else if (d.type === 'hanging_root') {
       ctx.save();
