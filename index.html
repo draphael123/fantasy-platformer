@@ -108,6 +108,10 @@
   <button class="menu-btn" id="levelSelectBtn" style="background:linear-gradient(135deg,#2980b9,#3498db);box-shadow:0 4px 0 #1a5276;">Level Select</button>
   <button class="menu-btn" id="tutorialBtn" style="background:linear-gradient(135deg,#8e44ad,#9b59b6);box-shadow:0 4px 0 #6c3483;">Tutorial</button>
   <button class="menu-btn" id="clearSaveBtn" style="background:linear-gradient(135deg,#c0392b,#e74c3c);box-shadow:0 4px 0 #922b21;font-size:12px;padding:8px 20px;margin-top:4px;">Clear Save Data</button>
+  <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;">
+    <button class="menu-btn" id="exportSaveBtn" style="background:linear-gradient(135deg,#34495e,#455a64);box-shadow:0 3px 0 #1c252c;font-size:11px;padding:6px 16px;">Export Save</button>
+    <button class="menu-btn" id="importSaveBtn" style="background:linear-gradient(135deg,#34495e,#455a64);box-shadow:0 3px 0 #1c252c;font-size:11px;padding:6px 16px;">Import Save</button>
+  </div>
   <div style="color:#667;margin-top:24px;font-size:13px;">
     Arrow Keys / WASD to move &nbsp;|&nbsp; Z to Attack &nbsp;|&nbsp; X to Dodge &nbsp;|&nbsp; C to Shield &nbsp;|&nbsp; 1/2 Potions
   </div>
@@ -167,6 +171,34 @@
 <!-- Level Complete (between levels) -->
 <div id="levelCompleteScreen" class="hidden">
   <div class="overlay-title" style="color:#f4d03f;">Level Complete!</div>
+
+<!-- Export Save Modal -->
+<div id="exportSaveScreen" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1000;">
+  <div style="background:linear-gradient(135deg,#1a1a1a,#222);border:2px solid #444;border-radius:8px;padding:32px;text-align:center;max-width:500px;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+    <div class="overlay-title" style="color:#88bbdd;margin-bottom:16px;">Export Save Code</div>
+    <div class="overlay-sub" style="color:#aaa;margin-bottom:20px;font-size:13px;">Copy this code to save your progress. Paste it on any device to restore your game.</div>
+    <textarea id="exportCodeInput" readonly style="width:100%;height:100px;padding:12px;background:#111;border:1px solid #555;border-radius:4px;color:#0f0;font-family:monospace;font-size:12px;resize:none;"></textarea>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+      <button class="overlay-btn" id="copyCodeBtn" style="background:linear-gradient(135deg,#27ae60,#2ecc71);box-shadow:0 4px 0 #1e8449;flex:1;">Copy to Clipboard</button>
+      <button class="overlay-btn" id="closeExportBtn" style="background:linear-gradient(135deg,#555,#666);box-shadow:0 3px 0 #333;flex:1;">Close</button>
+    </div>
+    <div id="copyFeedback" style="color:#0f0;font-size:12px;margin-top:12px;min-height:18px;"></div>
+  </div>
+</div>
+
+<!-- Import Save Modal -->
+<div id="importSaveScreen" class="hidden" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:1000;">
+  <div style="background:linear-gradient(135deg,#1a1a1a,#222);border:2px solid #444;border-radius:8px;padding:32px;text-align:center;max-width:500px;box-shadow:0 8px 32px rgba(0,0,0,0.8);">
+    <div class="overlay-title" style="color:#88bbdd;margin-bottom:16px;">Import Save Code</div>
+    <div class="overlay-sub" style="color:#aaa;margin-bottom:20px;font-size:13px;">Paste a save code to restore your progress on this device.</div>
+    <textarea id="importCodeInput" style="width:100%;height:100px;padding:12px;background:#111;border:1px solid #555;border-radius:4px;color:#aaa;font-family:monospace;font-size:12px;resize:none;"></textarea>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+      <button class="overlay-btn" id="loadSaveBtn" style="background:linear-gradient(135deg,#27ae60,#2ecc71);box-shadow:0 4px 0 #1e8449;flex:1;">Load Save</button>
+      <button class="overlay-btn" id="closeImportBtn" style="background:linear-gradient(135deg,#555,#666);box-shadow:0 3px 0 #333;flex:1;">Cancel</button>
+    </div>
+    <div id="importFeedback" style="color:#e74c3c;font-size:12px;margin-top:12px;min-height:18px;"></div>
+  </div>
+</div>
   <div class="overlay-sub" id="levelCompleteScore"></div>
   <button class="overlay-btn" id="nextLevelBtn">Next Level</button>
   <button class="back-btn" id="lcMenuBtn" style="margin-top:12px;">Main Menu</button>
@@ -12121,6 +12153,148 @@ document.getElementById('blockBtn').addEventListener('mousedown', () => { keys['
 document.getElementById('blockBtn').addEventListener('mouseup', () => { keys['KeyC'] = false; });
 document.getElementById('blockBtn').addEventListener('touchstart', (e) => { e.preventDefault(); keys['KeyC'] = true; });
 document.getElementById('blockBtn').addEventListener('touchend', (e) => { e.preventDefault(); keys['KeyC'] = false; });
+
+
+// ===== SAVE EXPORT/IMPORT SYSTEM =====
+const SAVE_CODE_VERSION = 'ROTF1:';
+
+function compressSaveData(save) {
+  // Keep only essential fields to minimize code length
+  return {
+    h: save.highestUnlocked,
+    s: save.highScores,
+    z: save.stars,
+    x: save.xp,
+    l: save.playerLevel,
+    g: save.gems,
+    st: save.stats,
+    p: save.potions,
+    t: save.tutorialDone
+  };
+}
+
+function expandSaveData(compressed) {
+  return {
+    highestUnlocked: compressed.h,
+    highScores: compressed.s,
+    stars: compressed.z,
+    xp: compressed.x,
+    playerLevel: compressed.l,
+    gems: compressed.g,
+    stats: compressed.st,
+    potions: compressed.p,
+    tutorialDone: compressed.t
+  };
+}
+
+function exportSave() {
+  try {
+    let save = loadSave();
+    let compressed = compressSaveData(save);
+    let json = JSON.stringify(compressed);
+    // Remove extra whitespace to minimize code length
+    json = json.replace(/\s+/g, '');
+    let encoded = btoa(json);
+    let code = SAVE_CODE_VERSION + encoded;
+    return code;
+  } catch(e) {
+    return null;
+  }
+}
+
+function importSave(code) {
+  try {
+    if (!code.startsWith(SAVE_CODE_VERSION)) {
+      return { success: false, error: 'Invalid save code format' };
+    }
+    let encoded = code.substring(SAVE_CODE_VERSION.length);
+    let json = atob(encoded);
+    let compressed = JSON.parse(json);
+    
+    // Validate that essential fields exist
+    if (typeof compressed.h !== 'number' || typeof compressed.x !== 'number') {
+      return { success: false, error: 'Invalid save code data' };
+    }
+    
+    let save = expandSaveData(compressed);
+    writeSave(save);
+    return { success: true };
+  } catch(e) {
+    return { success: false, error: 'Invalid save code' };
+  }
+}
+
+function showExportModal() {
+  let code = exportSave();
+  if (!code) {
+    alert('Error exporting save. Please try again.');
+    return;
+  }
+  document.getElementById('exportCodeInput').value = code;
+  document.getElementById('exportSaveScreen').classList.remove('hidden');
+  document.getElementById('copyFeedback').textContent = '';
+}
+
+function showImportModal() {
+  document.getElementById('importCodeInput').value = '';
+  document.getElementById('importFeedback').textContent = '';
+  document.getElementById('importSaveScreen').classList.remove('hidden');
+}
+
+function hideExportModal() {
+  document.getElementById('exportSaveScreen').classList.add('hidden');
+}
+
+function hideImportModal() {
+  document.getElementById('importSaveScreen').classList.add('hidden');
+}
+
+function copyToClipboard() {
+  let textarea = document.getElementById('exportCodeInput');
+  textarea.select();
+  document.execCommand('copy');
+  document.getElementById('copyFeedback').textContent = 'Copied!';
+  setTimeout(() => {
+    document.getElementById('copyFeedback').textContent = '';
+  }, 2000);
+}
+
+function loadFromCode() {
+  let code = document.getElementById('importCodeInput').value.trim();
+  if (!code) {
+    document.getElementById('importFeedback').textContent = 'Please paste a save code';
+    document.getElementById('importFeedback').style.color = '#e74c3c';
+    return;
+  }
+  
+  let result = importSave(code);
+  if (result.success) {
+    document.getElementById('importFeedback').textContent = 'Save loaded! Reloading game...';
+    document.getElementById('importFeedback').style.color = '#0f0';
+    setTimeout(() => {
+      location.reload();
+    }, 800);
+  } else {
+    document.getElementById('importFeedback').textContent = result.error;
+    document.getElementById('importFeedback').style.color = '#e74c3c';
+  }
+}
+
+// Export/Import Save buttons
+document.getElementById('exportSaveBtn').addEventListener('click', showExportModal);
+document.getElementById('importSaveBtn').addEventListener('click', showImportModal);
+document.getElementById('copyCodeBtn').addEventListener('click', copyToClipboard);
+document.getElementById('closeExportBtn').addEventListener('click', hideExportModal);
+document.getElementById('loadSaveBtn').addEventListener('click', loadFromCode);
+document.getElementById('closeImportBtn').addEventListener('click', hideImportModal);
+
+// Close modals when clicking outside
+document.getElementById('exportSaveScreen').addEventListener('click', function(e) {
+  if (e.target === this) hideExportModal();
+});
+document.getElementById('importSaveScreen').addEventListener('click', function(e) {
+  if (e.target === this) hideImportModal();
+});
 
 // Start — show main menu, then kick off render loop
 showMainMenu();
