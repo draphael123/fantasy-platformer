@@ -2238,11 +2238,7 @@ function generateLevel1() {
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
-  // Tower decoration (banner/flag at top)
-  decorations.push({
-    x: (towerCol + 2) * TILE, y: (groundY - 8) * TILE,
-    type: 'goblin_banner',
-  });
+  // (tower banner removed — too cluttered for Level 1)
 
   // --- DESTRUCTIBLE GOBLIN BARRICADES (3 spots with crates) ---
   let barricadePositions = [
