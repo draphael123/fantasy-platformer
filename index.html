@@ -280,15 +280,16 @@ let LEVEL_W = COLS * TILE;
 // ---- SAVE / LOAD ----
 const SAVE_KEY = 'realmOfTheFallen_save';
 function loadSave() {
-  try {
-    let data = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (data) return data;
-  } catch(e) {}
-  return { highestUnlocked: 1, highScores: {}, tutorialDone: false,
+  let defaults = { highestUnlocked: 1, highScores: {}, tutorialDone: false,
            xp: 0, playerLevel: 1, gems: 0,
            stats: { attack: 0, defense: 0, speed: 0, maxHp: 0 },
            potions: { health: 0, mana: 0 },
            stars: {} };
+  try {
+    let data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (data) return Object.assign(defaults, data);
+  } catch(e) {}
+  return defaults;
 }
 function writeSave(save) {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e) {}
