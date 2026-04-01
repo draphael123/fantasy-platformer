@@ -4882,852 +4882,350 @@ function generateLevel3() {
 }
 
 function generateLevel4() {
-  let groundY = GROUND_Y;
+  let groundY = GROUND_Y; // = 15
 
-  // --- ZONE 1: FOREST APPROACH (cols 0 to ~58, 15% of level) ---
-  let zone1End = Math.floor(COLS * 0.15);
+  // --- The Goblin Stockade: Simple forest village with enterable houses ---
+  // COLS = 390, TILE = 32, continuous ground throughout
 
-  // Continuous ground with grass
-  for (let col = 0; col < zone1End; col++) {
+  // Continuous ground across entire level
+  for (let col = 0; col < COLS; col++) {
     tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
     tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    // Forest grass decoration
-    if (Math.random() < 0.3) {
-      decorations.push({ x: col * TILE + 4 + Math.random() * 8, y: groundY * TILE - 6, type: 'fern' });
+  }
+
+  // Forest decorations (ferns and torches scattered)
+  for (let col = 0; col < COLS; col += 8) {
+    if (Math.random() < 0.4) {
+      decorations.push({ x: col * TILE + Math.random() * TILE, y: groundY * TILE - 8, type: 'fern' });
+    }
+    if (Math.random() < 0.15) {
+      decorations.push({ x: col * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
     }
   }
 
-  // Dense forest decorations: goblin huts, skull sticks, campfires
-  let hutPositions = [5, 12, 20, 32, 45];
-  for (let hPos of hutPositions) {
-    if (hPos < zone1End) {
-      decorations.push({ x: hPos * TILE, y: groundY * TILE, type: 'goblin_hut', size: 0.8 + Math.random() * 0.4 });
-      if (Math.random() < 0.6) {
-        decorations.push({ x: (hPos + 2) * TILE, y: groundY * TILE, type: 'skull_stick' });
-      }
-    }
-  }
+  // --- ZONE 1: Starting area (cols 0-20) ---
+  decorations.push({ x: 2 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'GOBLIN', text2: 'VILLAGE' });
 
-  let campfirePositions = [8, 25, 40];
-  for (let cfPos of campfirePositions) {
-    if (cfPos < zone1End) {
-      decorations.push({ x: cfPos * TILE + TILE / 2, y: groundY * TILE - 4, type: 'campfire' });
-    }
-  }
+  // 1 goblin patrolling start area
+  enemies.push({
+    x: 10 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 1 * 0.7, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 10 * TILE + 4, patrolRange: 5 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
 
-  // Forest entrance sign
-  decorations.push({ x: 2 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'GOBLIN', text2: 'TERRITORY' });
-
-  // Patrol goblins in Zone 1 (3-4)
+  // Some gems scattered in start area
   for (let g = 0; g < 4; g++) {
-    let gx = (6 + g * 10) * TILE + 4;
-    if (gx >= zone1End * TILE) break;
-    enemies.push({
-      x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
-      vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
-      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
-      patrolOrigin: gx, patrolRange: 5 * TILE,
-      animFrame: Math.random() * 100 | 0,
+    collectibles.push({
+      x: (3 + g * 4) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
     });
   }
 
-  // Tripwire hazards (2-3 across Zone 1)
-  let tripwirePositions = [11, 26, 42];
-  for (let twPos of tripwirePositions) {
-    if (twPos < zone1End) {
-      hazards.push({
-        type: 'tripwire',
-        x: twPos * TILE, y: groundY * TILE - 2,
-        w: 2 * TILE, h: 4,
-        triggered: false,
-        arrowDir: 1,
-      });
-    }
+  // --- ZONE 2: First house cluster (cols 20-80) ---
+  // House 1 at col 30: Simple cabin with doorway on left, items inside
+  let h1Col = 30, h1W = 7, h1H = 4;
+  // Left and right walls
+  for (let r = 0; r < h1H; r++) {
+    tiles.push({ x: h1Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (h1Col + h1W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
   }
-
-  // Gems in Zone 1 (6-8)
-  for (let g = 0; g < 8; g++) {
-    let gx = 10 + g * 6;
-    if (gx < zone1End && hasGroundAt(gx * TILE + TILE / 2)) {
-      collectibles.push({
-        x: gx * TILE + 10, y: (groundY - 1) * TILE + 4,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
+  // Roof (log tiles spanning full width)
+  for (let c = 0; c < h1W; c++) {
+    tiles.push({
+      x: (h1Col + c) * TILE, y: (groundY - h1H) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h1W - 1, logLen: h1W,
+    });
   }
-
-  // FEATURE 1: Explosive Barrels (2 in Zone 1 near goblin patrols)
-  hazards.push({
-    type: 'barrel', x: 8 * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-  hazards.push({
-    type: 'barrel', x: 22 * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-
-  // Checkpoint at end of Zone 1
-  checkpoint = {
-    x: (zone1End - 3) * TILE, y: groundY * TILE - 28,
-    w: TILE, h: 28, activated: false,
-  };
-
-  // --- ZONE 2: OUTER WALL (cols ~58 to ~98, 15-25%) ---
-  let zone2Start = zone1End;
-  let zone2End = Math.floor(COLS * 0.25);
-
-  // Build continuous ground in Zone 2
-  for (let col = zone2Start; col < zone2End; col++) {
-    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  // Peaked roof (narrower row on top)
+  for (let c = 0; c < h1W - 2; c++) {
+    tiles.push({
+      x: (h1Col + 1 + c) * TILE, y: (groundY - h1H - 1) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h1W - 3, logLen: h1W - 2,
+    });
   }
-
-  // Palisade wall: 6 tiles high, 3 tiles wide at col ~68
-  let wallCol = Math.floor((zone2Start + zone2End) / 2);
-  for (let r = 0; r < 6; r++) {
-    for (let w = 0; w < 3; w++) {
+  // Back wall (middle rows, leaving door open on left at ground level)
+  for (let r = 1; r < h1H; r++) {
+    for (let c = 1; c < h1W - 1; c++) {
       tiles.push({
-        x: (wallCol + w) * TILE, y: (groundY - 1 - r) * TILE,
+        x: (h1Col + c) * TILE, y: (groundY - 1 - r) * TILE,
         w: TILE, h: TILE, type: 'dirt',
       });
     }
   }
+  // Torch inside house 1
+  decorations.push({ x: (h1Col + 3) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
+  // Gems inside
+  collectibles.push({ x: (h1Col + 4) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  collectibles.push({ x: (h1Col + 5) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
 
-  // Archer towers on top of wall (2 platforms, each 3-4 tiles wide)
-  let archerTower1Col = wallCol;
-  let archerTower2Col = wallCol + 4;
-  for (let a = 0; a < 3; a++) {
+  // House 2 at col 60: Similar structure, doorway on right, has heart inside
+  let h2Col = 60, h2W = 8, h2H = 4;
+  for (let r = 0; r < h2H; r++) {
+    tiles.push({ x: h2Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (h2Col + h2W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  for (let c = 0; c < h2W; c++) {
     tiles.push({
-      x: (archerTower1Col + a) * TILE, y: (groundY - 7) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: a === 0, logEnd: a === 2, logLen: 3,
+      x: (h2Col + c) * TILE, y: (groundY - h2H) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h2W - 1, logLen: h2W,
     });
+  }
+  for (let c = 0; c < h2W - 2; c++) {
     tiles.push({
-      x: (archerTower2Col + a) * TILE, y: (groundY - 7) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: a === 0, logEnd: a === 2, logLen: 3,
+      x: (h2Col + 1 + c) * TILE, y: (groundY - h2H - 1) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h2W - 3, logLen: h2W - 2,
+    });
+  }
+  for (let r = 1; r < h2H; r++) {
+    for (let c = 1; c < h2W - 1; c++) {
+      tiles.push({
+        x: (h2Col + c) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+  decorations.push({ x: (h2Col + 4) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
+  collectibles.push({ x: (h2Col + 3) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 16, h: 16, type: 'heart', alive: true });
+
+  // 2 goblins patrolling between houses
+  enemies.push({
+    x: 35 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.8, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 35 * TILE + 4, patrolRange: 8 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+  enemies.push({
+    x: 55 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: -0.8, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    patrolOrigin: 55 * TILE + 4, patrolRange: 8 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+
+  // Gems scattered in zone 2
+  for (let g = 0; g < 6; g++) {
+    collectibles.push({
+      x: (25 + g * 6) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
     });
   }
 
-  // Archers on towers
+  // --- ZONE 3: Open forest with trees (cols 80-150) ---
+  // Checkpoint in early forest
+  checkpoint = {
+    x: 95 * TILE, y: groundY * TILE - 28,
+    w: TILE, h: 28, activated: false,
+  };
+
+  // 2 goblins in forest
   enemies.push({
-    x: (archerTower1Col + 1) * TILE + 4, y: (groundY - 8) * TILE, w: 24, h: 28,
-    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0, patrolOrigin: (archerTower1Col + 1) * TILE, patrolRange: 0,
-    animFrame: 0, shootTimer: 70, windingUp: 0, aggro: false,
-    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+    x: 90 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.7, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 90 * TILE + 4, patrolRange: 10 * TILE,
+    animFrame: Math.random() * 100 | 0,
   });
   enemies.push({
-    x: (archerTower2Col + 1) * TILE + 4, y: (groundY - 8) * TILE, w: 24, h: 28,
+    x: 130 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: -0.7, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    patrolOrigin: 130 * TILE + 4, patrolRange: 10 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+
+  // Tripwire hazard
+  hazards.push({
+    type: 'tripwire',
+    x: 110 * TILE, y: groundY * TILE - 2,
+    w: 2 * TILE, h: 4,
+    triggered: false,
+    arrowDir: 1,
+  });
+
+  // Gems scattered
+  for (let g = 0; g < 8; g++) {
+    collectibles.push({
+      x: (82 + g * 5) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // --- ZONE 4: Second village cluster (cols 150-220) ---
+  // House 3 at col 160: Has enemy inside (goblin)
+  let h3Col = 160, h3W = 7, h3H = 4;
+  for (let r = 0; r < h3H; r++) {
+    tiles.push({ x: h3Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (h3Col + h3W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  for (let c = 0; c < h3W; c++) {
+    tiles.push({
+      x: (h3Col + c) * TILE, y: (groundY - h3H) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h3W - 1, logLen: h3W,
+    });
+  }
+  for (let c = 0; c < h3W - 2; c++) {
+    tiles.push({
+      x: (h3Col + 1 + c) * TILE, y: (groundY - h3H - 1) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h3W - 3, logLen: h3W - 2,
+    });
+  }
+  for (let r = 1; r < h3H; r++) {
+    for (let c = 1; c < h3W - 1; c++) {
+      tiles.push({
+        x: (h3Col + c) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+  decorations.push({ x: (h3Col + 3) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
+  // Enemy goblin inside house 3
+  enemies.push({
+    x: (h3Col + 4) * TILE + 4, y: (groundY - 2) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: (h3Col + 4) * TILE + 4, patrolRange: 3 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+
+  // House 4 at col 190: Has gems inside
+  let h4Col = 190, h4W = 8, h4H = 4;
+  for (let r = 0; r < h4H; r++) {
+    tiles.push({ x: h4Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (h4Col + h4W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  for (let c = 0; c < h4W; c++) {
+    tiles.push({
+      x: (h4Col + c) * TILE, y: (groundY - h4H) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h4W - 1, logLen: h4W,
+    });
+  }
+  for (let c = 0; c < h4W - 2; c++) {
+    tiles.push({
+      x: (h4Col + 1 + c) * TILE, y: (groundY - h4H - 1) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h4W - 3, logLen: h4W - 2,
+    });
+  }
+  for (let r = 1; r < h4H; r++) {
+    for (let c = 1; c < h4W - 1; c++) {
+      tiles.push({
+        x: (h4Col + c) * TILE, y: (groundY - 1 - r) * TILE,
+        w: TILE, h: TILE, type: 'dirt',
+      });
+    }
+  }
+  decorations.push({ x: (h4Col + 4) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
+  collectibles.push({ x: (h4Col + 2) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  collectibles.push({ x: (h4Col + 4) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  collectibles.push({ x: (h4Col + 6) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+
+  // 2 goblins patrolling village area
+  enemies.push({
+    x: 170 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.8, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 170 * TILE + 4, patrolRange: 8 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+  enemies.push({
+    x: 200 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: -0.8, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    patrolOrigin: 200 * TILE + 4, patrolRange: 8 * TILE,
+    animFrame: Math.random() * 100 | 0,
+  });
+
+  // Checkpoint 2
+  hazards.push({
+    type: 'checkpoint2',
+    x: 210 * TILE, y: groundY * TILE - 28,
+    w: TILE, h: TILE, activated: false,
+  });
+
+  // Gems scattered
+  for (let g = 0; g < 7; g++) {
+    collectibles.push({
+      x: (152 + g * 8) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // --- ZONE 5: Dense forest to boss area (cols 220-300) ---
+  // 1 shield goblin
+  enemies.push({
+    x: 240 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.6, vy: 0,
+    type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 240 * TILE + 4, patrolRange: 8 * TILE,
+    animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
+  });
+
+  // Archer on elevated platform
+  let archerPlatCol = 270;
+  for (let c = 0; c < 4; c++) {
+    tiles.push({
+      x: (archerPlatCol + c) * TILE, y: (groundY - 3) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 3, logLen: 4,
+    });
+  }
+  enemies.push({
+    x: (archerPlatCol + 2) * TILE + 4, y: (groundY - 4) * TILE, w: 24, h: 28,
     vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0, patrolOrigin: (archerTower2Col + 1) * TILE, patrolRange: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (archerPlatCol + 2) * TILE, patrolRange: 0,
     animFrame: 0, shootTimer: 60, windingUp: 0, aggro: false,
     telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
   });
 
-  // Gate: 3-tile wide column of crate tiles (hp:3)
-  let gateCol = wallCol + 4;
-  for (let r = 0; r < 2; r++) {
-    for (let g = 0; g < 3; g++) {
-      tiles.push({
-        x: (gateCol + g) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'crate', hp: 3, maxHp: 3,
-      });
-    }
-  }
-
-  // Shield goblin defending gate
-  enemies.push({
-    x: (gateCol + 1) * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: 0.5, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: (gateCol + 1) * TILE, patrolRange: 4 * TILE,
-    animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
-  });
-
-  // Gems behind wall (5)
-  for (let g = 0; g < 5; g++) {
+  // Gems scattered
+  for (let g = 0; g < 10; g++) {
     collectibles.push({
-      x: (gateCol + 3 + g) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      x: (222 + g * 7) * TILE + 10, y: (groundY - 1) * TILE + 4,
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
 
-  // FEATURE 12: Watchtower in Zone 2 (near outer wall)
-  let watchtowerCol = wallCol - 8;
-  for (let wt = 0; wt < 8; wt++) {
-    watchtowerPlatforms.push({
-      x: watchtowerCol * TILE, y: (groundY - 2 - wt) * TILE,
-      w: TILE, h: TILE, platform: wt,
-    });
-    tiles.push({
-      x: watchtowerCol * TILE, y: (groundY - 2 - wt) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
-    });
-    // Add gems on watchtower platforms
-    if (wt % 2 === 0 && wt > 0) {
-      collectibles.push({
-        x: watchtowerCol * TILE + 10, y: (groundY - 2 - wt) * TILE - 8,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-  }
-  decorations.push({
-    x: watchtowerCol * TILE + TILE / 2, y: groundY * TILE - 30,
-    type: 'tutSign', text1: 'SCOUT', text2: 'TOWER',
-  });
-
-  // --- ZONE 3: CAMP GROUNDS (cols ~98 to ~195, 25-50%) ---
-  let zone3Start = zone2End;
-  let zone3End = Math.floor(COLS * 0.50);
-
-  // Continuous ground in Zone 3
-  for (let col = zone3Start; col < zone3End; col++) {
-    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
-  }
-
-  // Goblin huts scattered (4)
-  let hutPositions3 = [110, 130, 155, 175];
-  for (let hPos of hutPositions3) {
-    if (hPos < zone3End) {
-      decorations.push({ x: hPos * TILE, y: groundY * TILE, type: 'goblin_hut', size: 0.9 + Math.random() * 0.3 });
-    }
-  }
-
-  // Campfires (3)
-  let campfirePositions3 = [120, 145, 170];
-  for (let cfPos of campfirePositions3) {
-    if (cfPos < zone3End) {
-      decorations.push({ x: cfPos * TILE + TILE / 2, y: groundY * TILE - 4, type: 'campfire' });
-    }
-  }
-
-  // Skull sticks as weapon racks (3)
-  let skullPositions = [115, 150, 180];
-  for (let sPos of skullPositions) {
-    if (sPos < zone3End) {
-      decorations.push({ x: sPos * TILE, y: groundY * TILE, type: 'skull_stick' });
-    }
-  }
-
-  // Elevated wooden platforms with archers (3-4 tiles wide, 2-3 above ground)
-  let platformPositions = [
-    { col: 105, row: groundY - 2, len: 3 },
-    { col: 135, row: groundY - 3, len: 4 },
-    { col: 165, row: groundY - 2, len: 3 },
-  ];
-  for (let p of platformPositions) {
-    for (let c = 0; c < p.len; c++) {
-      tiles.push({
-        x: (p.col + c) * TILE, y: p.row * TILE,
-        w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === p.len - 1, logLen: p.len,
-      });
-    }
-    // Archer on this platform
-    enemies.push({
-      x: (p.col + Math.floor(p.len / 2)) * TILE + 4, y: (p.row - 1) * TILE, w: 24, h: 28,
-      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: Math.random() < 0.5 ? 1 : -1, attackCooldown: 0,
-      patrolOrigin: (p.col + Math.floor(p.len / 2)) * TILE, patrolRange: 0,
-      animFrame: 0, shootTimer: 50 + Math.random() * 40, windingUp: 0, aggro: false,
-      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
-    });
-  }
-
-  // Regular goblins patrolling (3)
-  for (let g = 0; g < 3; g++) {
-    let gx = (108 + g * 20) * TILE + 4;
-    if (gx < zone3End * TILE) {
-      enemies.push({
-        x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
-        vx: (g % 2 === 0 ? 1 : -1) * 0.8, vy: 0,
-        type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-        facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
-        patrolOrigin: gx, patrolRange: 6 * TILE,
-        animFrame: Math.random() * 100 | 0,
-      });
-    }
-  }
-
-  // Shield goblins (2)
-  for (let s = 0; s < 2; s++) {
-    let sx = (122 + s * 30) * TILE + 4;
-    if (sx < zone3End * TILE) {
-      enemies.push({
-        x: sx, y: (groundY - 1) * TILE, w: 24, h: 28,
-        vx: 0.6, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
-        facing: 1, attackCooldown: 0,
-        patrolOrigin: sx, patrolRange: 5 * TILE,
-        animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
-      });
-    }
-  }
-
-  // Mess hall with stacked crates (hp:2, breakable, with gems inside)
-  let messHallCol = 145;
-  for (let r = 0; r < 2; r++) {
-    for (let c = 0; c < 2; c++) {
-      tiles.push({
-        x: (messHallCol + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
-      });
-    }
-  }
-  // Gems inside crates
-  for (let g = 0; g < 4; g++) {
-    collectibles.push({
-      x: (messHallCol + g % 2) * TILE + 10, y: (groundY - 1 + Math.floor(g / 2) - 1) * TILE + 4,
-      w: 12, h: 16, type: 'gem', alive: true,
-    });
-  }
-
-  // FEATURE 10: Feast table (near col 145)
-  feasts.push({
-    x: 145 * TILE, y: (groundY - 1) * TILE, w: 4 * TILE, h: TILE,
-    tipped: false, tipTimer: 0, platformCreated: false,
-  });
-
-  // FEATURE 2: Oil puddles (4-5 near campfires in Zones 1 and 3)
-  oilPuddles.push({
-    x: 120 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
-    ignited: false, fireTimer: 0,
-  });
-  oilPuddles.push({
-    x: 145 * TILE + 8, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
-    ignited: false, fireTimer: 0,
-  });
-  oilPuddles.push({
-    x: 170 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
-    ignited: false, fireTimer: 0,
-  });
-  oilPuddles.push({
-    x: 8 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
-    ignited: false, fireTimer: 0,
-  });
-
-  // FEATURE 1: Barrels (3 in Zone 3 near huts/campfires)
-  hazards.push({
-    type: 'barrel', x: 118 * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-  hazards.push({
-    type: 'barrel', x: 148 * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-  hazards.push({
-    type: 'barrel', x: 168 * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-
-  // FEATURE 3: Sleeping Goblins (4 in Zone 3 near huts, cols ~100-195)
-  let sleepPositions = [105, 125, 150, 175];
-  for (let sp of sleepPositions) {
-    sleepingGoblins.push({
-      x: sp * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-      sleeping: true, wakeRadius: 4 * TILE, awoken: false,
-    });
-  }
-  // Add sign before sleeping area
-  decorations.push({
-    x: 100 * TILE, y: groundY * TILE, type: 'tutSign',
-    text1: 'QUIET...', text2: 'LIGHT SLEEP',
-  });
-
-  // FEATURE 4: Freeable Prisoner (in Zone 3 at col 175)
-  let cageCol = 175;
-  let cageRow = groundY;
-  // Cage walls as crate tiles (hp:2)
-  for (let r = 0; r < 2; r++) {
-    tiles.push({ x: (cageCol - 1) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
-    tiles.push({ x: (cageCol + 2) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
-  }
-  for (let c = 0; c < 2; c++) {
-    tiles.push({ x: (cageCol + c) * TILE, y: (cageRow - 1) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
-  }
-  // Prisoner inside cage
-  prisoners.push({
-    x: cageCol * TILE + 6, y: (groundY - 1) * TILE, w: 20, h: 28,
-    freed: false, type: 'prisoner', bounceOffset: 0,
-  });
-  decorations.push({ x: cageCol * TILE + TILE / 2, y: (cageRow - 1) * TILE + 4, type: 'torch' });
-
-  // Checkpoint2 in middle of Zone 3
-  hazards.push({
-    type: 'checkpoint2',
-    x: Math.floor((zone3Start + zone3End) / 2) * TILE, y: groundY * TILE - 28,
-    w: TILE, h: TILE, activated: false,
-  });
-
-  // Gems scattered in Zone 3 (10+)
-  for (let g = 0; g < 12; g++) {
-    let gx = zone3Start * TILE + 50 + g * 6 * TILE;
-    if (gx < zone3End * TILE && hasGroundAt(gx + 6)) {
-      collectibles.push({
-        x: gx + 10, y: (groundY - 1) * TILE + 4,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-  }
-
-  // Hearts (2) in Zone 3
-  collectibles.push({
-    x: 125 * TILE, y: (groundY - 1) * TILE,
-    w: 16, h: 16, type: 'heart', alive: true,
-  });
-  collectibles.push({
-    x: 170 * TILE, y: (groundY - 1) * TILE,
-    w: 16, h: 16, type: 'heart', alive: true,
-  });
-
-  // --- ZONE 4: GAUNTLET TRENCH (cols ~195 to ~253, 50-65%) ---
-  let zone4Start = zone3End;
-  let zone4End = Math.floor(COLS * 0.65);
-
-  // Drop-down entrance: remove 3 ground tiles, floor 3 tiles below groundY
-  for (let col = zone4Start; col < zone4Start + 3; col++) {
-    // No ground tiles here — it's a pit
-  }
-  // Ground tiles after drop entrance
-  for (let col = zone4Start + 3; col < zone4End; col++) {
-    // Skip the pit drop and start the trench floor
-  }
-
-  // Trench floor is 3 tiles below ground level, 15 tiles long, dirt walls
-  let trenchFloorY = groundY + 3;
-  let trenchStartCol = zone4Start + 3;
-  let trenchEndCol = zone4End;
-
-  // Trench floor
-  for (let col = trenchStartCol; col < trenchEndCol; col++) {
-    tiles.push({
-      x: col * TILE, y: trenchFloorY * TILE, w: TILE, h: TILE, type: 'dirt',
-    });
-  }
-
-  // Left wall (dirt, full height from ground to floor)
-  for (let col = trenchStartCol - 1; col < trenchStartCol; col++) {
-    for (let row = groundY; row <= trenchFloorY; row++) {
-      tiles.push({
-        x: col * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-
-  // Right wall (dirt)
-  for (let col = trenchEndCol; col < trenchEndCol + 1; col++) {
-    for (let row = groundY; row <= trenchFloorY; row++) {
-      tiles.push({
-        x: col * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-
-  // Spike trap hazards on trench floor (every 2-3 tiles with 1-tile safe gaps)
-  for (let col = trenchStartCol; col < trenchEndCol; col += 3) {
-    if (col + 1 < trenchEndCol) {
-      hazards.push({
-        type: 'spike_trap',
-        x: col * TILE, y: trenchFloorY * TILE,
-        w: TILE, h: 8, damage: 1,
-      });
-      hazards.push({
-        type: 'spike_trap',
-        x: (col + 1) * TILE, y: trenchFloorY * TILE,
-        w: TILE, h: 8, damage: 1,
-      });
-      // col + 2 is safe gap
-    }
-  }
-
-  // Shield goblins in trench (2)
-  for (let s = 0; s < 2; s++) {
-    let sx = (trenchStartCol + 3 + s * 6) * TILE + 4;
-    if (sx < trenchEndCol * TILE) {
-      enemies.push({
-        x: sx, y: (trenchFloorY - 1) * TILE, w: 24, h: 28,
-        vx: 0.5, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
-        facing: 1, attackCooldown: 0,
-        patrolOrigin: sx, patrolRange: 4 * TILE,
-        animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
-      });
-    }
-  }
-
-  // Archers on bridges above trench (2 log platforms spanning trench with archers)
-  let bridgeLeftCol = trenchStartCol + 2;
-  let bridgeRightCol = trenchEndCol - 4;
-  for (let b = 0; b < 2; b++) {
-    let bCol = b === 0 ? bridgeLeftCol : bridgeRightCol;
-    for (let c = 0; c < 3; c++) {
-      tiles.push({
-        x: (bCol + c) * TILE, y: (groundY - 1) * TILE,
-        w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 2, logLen: 3,
-      });
-    }
-    enemies.push({
-      x: (bCol + 1) * TILE + 4, y: (groundY - 2) * TILE, w: 24, h: 28,
-      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: b === 0 ? 1 : -1, attackCooldown: 0,
-      patrolOrigin: (bCol + 1) * TILE, patrolRange: 0,
-      animFrame: 0, shootTimer: 65, windingUp: 0, aggro: false,
-      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
-    });
-  }
-
-  // Step-up exit (log platform staircase back to ground level)
-  let stairStartCol = trenchEndCol;
-  tiles.push({
-    x: stairStartCol * TILE, y: (trenchFloorY - 1) * TILE,
-    w: TILE, h: TILE, type: 'log', logStart: true, logEnd: false, logLen: 2,
-  });
-  tiles.push({
-    x: (stairStartCol + 1) * TILE, y: (trenchFloorY - 2) * TILE,
-    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: true, logLen: 2,
-  });
-
-  // Gems along trench safe gaps (8)
-  for (let g = 0; g < 8; g++) {
-    let gx = (trenchStartCol + 2 + g * 2) * TILE;
-    if (gx < trenchEndCol * TILE) {
-      collectibles.push({
-        x: gx + 10, y: (trenchFloorY - 1) * TILE + 4,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-  }
-
-  // Checkpoint2 at trench exit
-  hazards.push({
-    type: 'checkpoint2',
-    x: (stairStartCol + 1) * TILE, y: (groundY - 2) * TILE - 28,
-    w: TILE, h: TILE, activated: false,
-  });
-
-  // --- ZONE 5: WAR CHIEF'S KEEP (cols ~253 to ~331, 65-85%) ---
-  let zone5Start = zone4End;
-  let zone5End = Math.floor(COLS * 0.85);
-
-  // Ground floor
-  for (let col = zone5Start; col < zone5End; col++) {
-    tiles.push({
-      x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground',
-    });
-    tiles.push({
-      x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt',
-    });
-  }
-
-  // Multi-level structure
-  let keepCol = Math.floor((zone5Start + zone5End) / 2);
-
-  // Second floor: log platforms at groundY-3, spanning ~12 tiles with gaps
-  let secondFloorStart = keepCol - 5;
-  for (let c = 0; c < 12; c++) {
-    tiles.push({
-      x: (secondFloorStart + c) * TILE, y: (groundY - 3) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 11, logLen: 12,
-    });
-  }
-
-  // Create a gap in the second floor for puzzle
-  for (let c = 4; c < 6; c++) {
-    tiles = tiles.filter(t => !(t.x === (secondFloorStart + c) * TILE && t.y === (groundY - 3) * TILE));
-  }
-
-  // Third floor: log platforms at groundY-6, spanning ~8 tiles
-  let thirdFloorStart = keepCol - 3;
-  for (let c = 0; c < 8; c++) {
-    tiles.push({
-      x: (thirdFloorStart + c) * TILE, y: (groundY - 6) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
-    });
-  }
-
-  // Breakable floor sections: crate tiles (hp:1) on second floor
-  for (let c = 8; c < 11; c++) {
-    tiles.push({
-      x: (secondFloorStart + c) * TILE, y: (groundY - 3) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 1, maxHp: 1,
-    });
-  }
-
-  // Goblin knight on second floor
+  // --- ZONE 6: Boss arena (cols 300-390) ---
+  // Knight boss (hp:4) instead of war_chief
+  let bossX = 330 * TILE;
   enemies.push({
-    x: (secondFloorStart + 3) * TILE + 4, y: (groundY - 4) * TILE, w: 40, h: 48,
+    x: bossX, y: (groundY - 2) * TILE, w: 40, h: 48,
     vx: 0, vy: 0,
-    type: 'knight', hp: 3, maxHp: 3, alive: true, hurtTimer: 0,
+    type: 'knight', hp: 4, maxHp: 4, alive: true, hurtTimer: 0,
     facing: 1, attackCooldown: 0,
-    patrolOrigin: (secondFloorStart + 3) * TILE, patrolRange: 6 * TILE,
+    patrolOrigin: bossX, patrolRange: 6 * TILE,
     animFrame: 0, grounded: false,
     phase: 'idle', phaseTimer: 60,
     invulnTimer: 0, stompCooldown: 0,
   });
 
-  // Archers on third floor (2)
-  for (let a = 0; a < 2; a++) {
-    let ax = (thirdFloorStart + 1 + a * 4) * TILE + 4;
-    enemies.push({
-      x: ax, y: (groundY - 7) * TILE, w: 24, h: 28,
-      vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: a === 0 ? 1 : -1, attackCooldown: 0,
-      patrolOrigin: ax, patrolRange: 0,
-      animFrame: 0, shootTimer: 60 + a * 20, windingUp: 0, aggro: false,
-      telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
-    });
-  }
+  // Torches flanking boss arena
+  decorations.push({ x: 305 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
+  decorations.push({ x: 375 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
 
-  // Regular goblins on ground floor (3)
-  for (let g = 0; g < 3; g++) {
-    let gx = (zone5Start + 5 + g * 8) * TILE + 4;
-    enemies.push({
-      x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
-      vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
-      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-      facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
-      patrolOrigin: gx, patrolRange: 5 * TILE,
-      animFrame: Math.random() * 100 | 0,
-    });
-  }
-
-  // Treasure room: off to the side at ground level, behind crate wall (hp:2)
-  let treasureCol = zone5End - 8;
-  for (let r = 0; r < 2; r++) {
-    for (let c = 0; c < 2; c++) {
-      tiles.push({
-        x: (treasureCol + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
-      });
-    }
-  }
-  // Gems in treasure room (8 + 1 heart)
-  for (let g = 0; g < 8; g++) {
+  // Gems in arena
+  for (let g = 0; g < 5; g++) {
     collectibles.push({
-      x: (treasureCol + g % 2) * TILE + 10, y: (groundY - 1 + Math.floor(g / 2) - 1) * TILE + 4,
+      x: (310 + g * 12) * TILE + 10, y: (groundY - 1) * TILE + 4,
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
-  collectibles.push({
-    x: (treasureCol + 1) * TILE, y: (groundY - 2) * TILE,
-    w: 16, h: 16, type: 'heart', alive: true,
-  });
-
-  // Torches on every floor (3-4 scattered)
-  let torchPositions = [
-    { col: zone5Start + 3, row: groundY },
-    { col: secondFloorStart + 2, row: groundY - 3 },
-    { col: secondFloorStart + 8, row: groundY - 3 },
-    { col: thirdFloorStart + 3, row: groundY - 6 },
-  ];
-  for (let tp of torchPositions) {
-    decorations.push({ x: tp.col * TILE + TILE / 2, y: tp.row * TILE - 4, type: 'torch' });
-  }
-
-  // Banner decorations (war chief theme)
-  decorations.push({ x: (keepCol - 2) * TILE, y: (groundY - 8) * TILE, type: 'tutSign', text1: 'WAR', text2: 'CHIEF' });
-
-  // FEATURE 5: Zip Lines in Zone 5 (2 lines for quick descent)
-  // Zipline 1: Third floor to second floor
-  ziplines.push({
-    x1: (thirdFloorStart + 2) * TILE + TILE/2, y1: (groundY - 6) * TILE,
-    x2: (secondFloorStart + 7) * TILE + TILE/2, y2: (groundY - 3) * TILE,
-    w: 8, h: 8, active: true,
-  });
-  // Zipline 2: Second floor to ground floor
-  ziplines.push({
-    x1: (secondFloorStart + 7) * TILE + TILE/2, y1: (groundY - 3) * TILE,
-    x2: (zone5End - 3) * TILE + TILE/2, y2: (groundY - 1) * TILE,
-    w: 8, h: 8, active: true,
-  });
-
-  // FEATURE 9: Hidden Armory (fake wall with flaming sword)
-  let armoryCol = zone5Start + 10;
-  // Fake wall (looks like dirt with crack)
-  tiles.push({
-    x: armoryCol * TILE, y: (groundY - 4) * TILE,
-    w: TILE, h: TILE, type: 'dirt', isFakeWall: true,
-  });
-  // Behind wall: ground floor for room
-  tiles.push({
-    x: armoryCol * TILE, y: (groundY - 1) * TILE,
-    w: TILE, h: TILE, type: 'ground',
-  });
-  // Flaming sword pickup in armory
-  collectibles.push({
-    x: armoryCol * TILE + 6, y: (groundY - 2) * TILE,
-    w: 12, h: 16, type: 'flaming_sword', alive: true,
-  });
-  // Hint: torch that flickers differently near fake wall
-  decorations.push({
-    x: (armoryCol - 1) * TILE + TILE / 2, y: (groundY - 4) * TILE - 4,
-    type: 'torch', isHint: true,
-  });
-
-  // FEATURE 4: Second Prisoner Cage (in Zone 5 behind crate wall)
-  let prisonCol = zone5Start + 20;
-  // Cage walls as crate tiles (hp:2)
-  for (let r = 0; r < 2; r++) {
-    tiles.push({
-      x: (prisonCol - 1) * TILE, y: (groundY - 1 - r) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
-    });
-    tiles.push({
-      x: (prisonCol + 2) * TILE, y: (groundY - 1 - r) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
-    });
-  }
-  for (let c = 0; c < 2; c++) {
-    tiles.push({
-      x: (prisonCol + c) * TILE, y: (groundY - 1) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
-    });
-  }
-  // Second prisoner
-  prisoners.push({
-    x: prisonCol * TILE + 6, y: (groundY - 1) * TILE, w: 20, h: 28,
-    freed: false, type: 'prisoner', bounceOffset: 0,
-  });
-  decorations.push({
-    x: prisonCol * TILE + TILE / 2, y: (groundY - 1) * TILE + 4,
-    type: 'torch',
-  });
-
-  // Checkpoint2 before boss arena
-  hazards.push({
-    type: 'checkpoint2',
-    x: (zone5End - 2) * TILE, y: groundY * TILE - 28,
-    w: TILE, h: TILE, activated: false,
-  });
-
-  // --- ZONE 6: BOSS ARENA (cols ~331 to end, 85-100%) ---
-  let zone6Start = zone5End;
-  let bossArenaEnd = COLS;
-
-  // Flat open arena with continuous ground
-  for (let col = zone6Start; col < bossArenaEnd; col++) {
-    tiles.push({
-      x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground',
-    });
-    tiles.push({
-      x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt',
-    });
-  }
-
-  // FEATURE 7: Destructible Arena Walls (change to crate tiles hp:4)
-  for (let row = 0; row < 2; row++) {
-    tiles.push({
-      x: (zone6Start - 2) * TILE, y: (groundY - row) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 4, maxHp: 4,
-    });
-    tiles.push({
-      x: (bossArenaEnd - 1) * TILE, y: (groundY - row) * TILE,
-      w: TILE, h: TILE, type: 'crate', hp: 4, maxHp: 4,
-    });
-  }
-  // Ground behind walls for alcoves
-  tiles.push({
-    x: (zone6Start - 2) * TILE, y: (groundY - 1) * TILE + TILE,
-    w: TILE, h: TILE, type: 'ground',
-  });
-  tiles.push({
-    x: (bossArenaEnd - 1) * TILE, y: (groundY - 1) * TILE + TILE,
-    w: TILE, h: TILE, type: 'ground',
-  });
-  // Gems in alcoves behind walls
-  collectibles.push({
-    x: (zone6Start - 2) * TILE + 10, y: (groundY) * TILE + 4,
-    w: 12, h: 16, type: 'gem', alive: true,
-  });
-  collectibles.push({
-    x: (bossArenaEnd - 1) * TILE + 10, y: (groundY) * TILE + 4,
-    w: 12, h: 16, type: 'gem', alive: true,
-  });
-
-  // FEATURE 6: War Chief Phase 2 Platform (elevated platform at center)
-  warChiefPhase2Platform = {
-    x: (zone6Start + 8) * TILE, y: (groundY - 4) * TILE,
-    w: 4 * TILE, h: TILE, active: false,
-  };
-  // Add platform tiles (will be drawn dynamically)
-
-  // War Chief boss
-  let bossX = (zone6Start + 5) * TILE;
-  enemies.push({
-    x: bossX, y: (groundY - 2) * TILE, w: 48, h: 56,
-    vx: 0, vy: 0,
-    type: 'war_chief', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: bossX, patrolRange: 6 * TILE,
-    animFrame: 0, grounded: false,
-    phase: 'idle', phaseTimer: 60,
-    chargeSpeed: 0, charging: false,
-    slamCooldown: 0, rallyCooldown: 0,
-    enraged: false,
-    phase2: false, boulderCooldown: 0,
-  });
-
-  // FEATURE 11: Catapult (in center-right of arena)
-  catapults.push({
-    x: (zone6Start + 12) * TILE, y: (groundY - 1) * TILE,
-    w: 2 * TILE, h: TILE, cooldown: 0, maxCooldown: 120,
-  });
-
-  // FEATURE 1: Barrels in Zone 6 (2-3 near boss arena)
-  hazards.push({
-    type: 'barrel', x: (zone6Start + 2) * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-  hazards.push({
-    type: 'barrel', x: (zone6Start + 15) * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-  hazards.push({
-    type: 'barrel', x: (bossArenaEnd - 5) * TILE, y: (groundY - 1) * TILE - 8,
-    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
-  });
-
-  // FEATURE 8: Goblin Drummers (2 on elevated platforms)
-  enemies.push({
-    x: (zone6Start + 3) * TILE, y: (groundY - 3) * TILE, w: 20, h: 28,
-    vx: 0, vy: 0, type: 'drummer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0, patrolOrigin: (zone6Start + 3) * TILE, patrolRange: 0,
-    animFrame: 0, drumAnimation: 0,
-  });
-  enemies.push({
-    x: (bossArenaEnd - 4) * TILE, y: (groundY - 3) * TILE, w: 20, h: 28,
-    vx: 0, vy: 0, type: 'drummer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0, patrolOrigin: (bossArenaEnd - 4) * TILE, patrolRange: 0,
-    animFrame: 0, drumAnimation: 0,
-  });
-  // Drummer platforms
-  tiles.push({
-    x: (zone6Start + 3) * TILE, y: (groundY - 2) * TILE,
-    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
-  });
-  tiles.push({
-    x: (bossArenaEnd - 4) * TILE, y: (groundY - 2) * TILE,
-    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
-  });
 
   // Exit portal (hidden until boss dies)
   exitPortal = {
-    x: (bossArenaEnd - 4) * TILE, y: (groundY - 2) * TILE,
+    x: 370 * TILE, y: (groundY - 2) * TILE,
     w: TILE * 2, h: TILE * 2, hidden: true,
   };
-
-  // Torches flanking the arena (2)
-  decorations.push({ x: (zone6Start - 1) * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
-  decorations.push({ x: (bossArenaEnd - 1) * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
-
-  // Gems scattered in arena (4)
-  for (let g = 0; g < 4; g++) {
-    let gx = (zone6Start + 8 + g * 4) * TILE;
-    if (gx < bossArenaEnd * TILE) {
-      collectibles.push({
-        x: gx + 10, y: (groundY - 1) * TILE + 4,
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-  }
 }
 
 
@@ -7240,6 +6738,23 @@ function update() {
           }
         }
       }
+      // Plunge shockwave destroys nearby crates
+      let shockwaveRange = 80;
+      for (let ti = tiles.length - 1; ti >= 0; ti--) {
+        let t = tiles[ti];
+        if (t.type === 'crate' && t.hp) {
+          let dist = Math.abs((t.x + t.w / 2) - (player.x + player.w / 2));
+          if (dist < shockwaveRange && Math.abs((t.y + t.h / 2) - (player.y + player.h)) < 40) {
+            t.hp--;
+            spawnParticles(t.x + t.w / 2, t.y + t.h / 2, '#8a6a4a', 6, 3);
+            if (t.hp <= 0) {
+              tiles.splice(ti, 1);
+              spawnParticles(t.x + t.w / 2, t.y + t.h / 2, '#9a7a5a', 12, 6);
+              playSound('destroy');
+            }
+          }
+        }
+      }
     }
   }
 
@@ -8648,8 +8163,8 @@ function update() {
   // --- Boss portal reveal (checked after enemy loop so dead bosses still trigger it) ---
   if (exitPortal && exitPortal.hidden) {
     for (const e of enemies) {
-      // Level 2 knight boss
-      if (e.type === 'knight' && !e.alive && currentLevel === 2) {
+      // Knight boss on Levels 2 and 4
+      if (e.type === 'knight' && !e.alive && (currentLevel === 2 || currentLevel === 4)) {
         exitPortal.hidden = false;
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
@@ -9553,335 +9068,6 @@ function update() {
       playSound('checkpoint');
       spawnParticles(h.x + TILE / 2, h.y, '#ffaa22', 15, 6);
       scorePopups.push({ x: h.x + TILE / 2, y: h.y - 20, text: 'CHECKPOINT', life: 60 });
-    }
-  }
-
-  // FEATURE 1: Explosive Barrels update
-  for (const h of hazards) {
-    if (h.type !== 'barrel') continue;
-    if (h.exploded) continue;
-
-    // Explode if player attacks nearby or arrow hits
-    let shouldExplode = false;
-
-    // Check player attack hit
-    if (player.attacking && rectOverlap(player, { x: h.x - 8, y: h.y - 8, w: h.w + 16, h: h.h + 16 })) {
-      shouldExplode = true;
-    }
-
-    // Check arrow hits
-    for (const proj of projectiles) {
-      if (proj.type === 'arrow' && rectOverlap(proj, h)) {
-        shouldExplode = true;
-        break;
-      }
-    }
-
-    if (shouldExplode) {
-      h.exploded = true;
-      shakeTimer = 20;
-      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ff6600', 20, 6);
-      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ffaa00', 15, 5);
-      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ffddaa', 10, 3);
-      playSound('hit');
-
-      // Deal damage to enemies within 3 tiles (96px)
-      let explosionDist = 3 * TILE;
-      for (const e of enemies) {
-        if (e.alive) {
-          let dist = Math.hypot(e.x - h.x, e.y - h.y);
-          if (dist < explosionDist) {
-            e.hp -= 2;
-            if (e.hp <= 0) e.alive = false;
-            e.vx = (e.x - h.x) > 0 ? 4 : -4;
-            e.vy = -3;
-          }
-        }
-      }
-
-      // Chain react with other barrels within 3 tiles
-      for (const h2 of hazards) {
-        if (h2.type === 'barrel' && !h2.exploded) {
-          let dist = Math.hypot(h2.x - h.x, h2.y - h.y);
-          if (dist < explosionDist) {
-            h2.exploded = true;
-            spawnParticles(h2.x + h2.w/2, h2.y + h2.h/2, '#ff6600', 15, 5);
-          }
-        }
-      }
-
-      // Ignite nearby oil puddles
-      for (const op of oilPuddles) {
-        let dist = Math.hypot(op.x - h.x, op.y - h.y);
-        if (dist < explosionDist) {
-          op.ignited = true;
-        }
-      }
-    }
-  }
-
-  // FEATURE 2: Oil Puddles + Fire update
-  for (const op of oilPuddles) {
-    if (op.ignited) {
-      op.fireTimer++;
-      if (op.fireTimer >= 300) {
-        op.ignited = false;
-        op.fireTimer = 0;
-      }
-
-      // Damage player in fire puddle
-      if (rectOverlap(player, { x: op.x, y: op.y, w: op.w, h: op.h }) && player.invincible <= 0) {
-        player.hp--;
-        player.invincible = 30;
-        spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ff6600', 8, 3);
-      }
-
-      // Damage enemies in fire
-      for (const e of enemies) {
-        if (e.alive && rectOverlap(e, { x: op.x, y: op.y, w: op.w, h: op.h }) && !e.fireImmune) {
-          e.hp -= 1;
-          if (e.hp <= 0) e.alive = false;
-          e.fireImmune = true;
-          e.fireImmuneTimer = 30;
-          spawnParticles(e.x + e.w/2, e.y + e.h/2, '#ff6600', 6, 2);
-        }
-      }
-    }
-
-    // Reduce fire immunity timers
-    for (const e of enemies) {
-      if (e.fireImmuneTimer && e.fireImmuneTimer > 0) e.fireImmuneTimer--;
-      if (e.fireImmuneTimer === 0) e.fireImmune = false;
-    }
-  }
-
-  // FEATURE 3: Sleeping Goblins wake detection
-  for (const sg of sleepingGoblins) {
-    if (sg.awoken) continue;
-
-    // Check if player is within wake radius
-    let distToPlayer = Math.hypot(player.x - sg.x, player.y - sg.y);
-    let playerAttackNearby = player.attacking && distToPlayer < sg.wakeRadius + 50;
-
-    if (distToPlayer < sg.wakeRadius || playerAttackNearby) {
-      // Wake all sleeping goblins
-      for (const sg2 of sleepingGoblins) {
-        sg2.awoken = true;
-        // Convert to regular enemy
-        enemies.push({
-          x: sg2.x, y: sg2.y, w: sg2.w, h: sg2.h,
-          vx: Math.random() < 0.5 ? 1 : -1, vy: 0,
-          type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-          facing: Math.random() < 0.5 ? 1 : -1, attackCooldown: 0,
-          patrolOrigin: sg2.x, patrolRange: 8 * TILE,
-          animFrame: Math.random() * 100 | 0, aggro: true,
-        });
-      }
-      scorePopups.push({ x: player.x, y: player.y - 40, text: 'GOBLINS AWOKEN!', life: 60 });
-      break;
-    }
-  }
-
-  // FEATURE 4: Freeable Prisoners update
-  for (const p of prisoners) {
-    if (p.freed) continue;
-
-    // Check if cage walls are broken (all adjacent walls destroyed)
-    let allWallsDestroyed = true;
-    for (const t of tiles) {
-      if ((t.type === 'crate' || t.type === 'dirt') &&
-          Math.abs(t.x - p.x) < TILE * 2 && Math.abs(t.y - p.y) < TILE * 3) {
-        if (t.hp !== undefined && t.hp > 0) {
-          allWallsDestroyed = false;
-          break;
-        }
-      }
-    }
-
-    if (allWallsDestroyed) {
-      p.freed = true;
-      // Spawn rewards
-      collectibles.push({ x: p.x, y: p.y - 20, w: 16, h: 16, type: 'heart', alive: true });
-      for (let i = 0; i < 5; i++) {
-        collectibles.push({
-          x: p.x + (Math.random() - 0.5) * 30, y: p.y - 30,
-          w: 12, h: 16, type: 'gem', alive: true,
-        });
-      }
-      scorePopups.push({ x: p.x, y: p.y - 40, text: 'FREED!', life: 60 });
-      playSound('gem');
-    }
-
-    // Bounce animation
-    p.bounceOffset = Math.sin(frameCount * 0.08) * 2;
-  }
-
-  // FEATURE 5: Zip Lines update
-  for (const zl of ziplines) {
-    // Check if player is jumping near zipline
-    if (!player.onZipline && !player.grounded && player.vy >= -2) {
-      let playerBox = { x: player.x, y: player.y, w: player.w, h: player.h };
-      // Expand hitbox for easy attachment
-      let zlBox = { x: Math.min(zl.x1, zl.x2) - 20, y: Math.min(zl.y1, zl.y2) - 20,
-                    w: Math.abs(zl.x2 - zl.x1) + 40, h: Math.abs(zl.y2 - zl.y1) + 40 };
-      if (rectOverlap(playerBox, zlBox)) {
-        player.onZipline = true;
-        player.ziplineObj = zl;
-        player.vy = 0;
-        // Position on zipline
-        let t = 0;
-        player.x = zl.x1 + (zl.x2 - zl.x1) * t - player.w/2;
-        player.y = zl.y1 + (zl.y2 - zl.y1) * t - player.h/2;
-      }
-    }
-
-    // If on zipline, move along it
-    if (player.onZipline && player.ziplineObj === zl) {
-      let dx = zl.x2 - zl.x1;
-      let dy = zl.y2 - zl.y1;
-      let len = Math.sqrt(dx*dx + dy*dy);
-      dx /= len;
-      dy /= len;
-
-      player.x += dx * 5;
-      player.y += dy * 5;
-
-      // Check if reached end
-      let distToEnd = Math.hypot(player.x - zl.x2, player.y - zl.y2);
-      if (distToEnd < 20) {
-        player.onZipline = false;
-        player.ziplineObj = null;
-        player.vy = 2; // gentle drop
-      }
-
-      // Allow jump off
-      if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && !player.grounded) {
-        player.onZipline = false;
-        player.ziplineObj = null;
-        player.vy = -8;
-      }
-    }
-  }
-
-  // FEATURE 6: War Chief Phase 2 Trigger
-  if (currentLevel === 4 && !phase2Triggered) {
-    let boss = null;
-    for (const e of enemies) {
-      if (e.type === 'war_chief') { boss = e; break; }
-    }
-    if (boss && boss.hp <= 2 && boss.hp > 0) {
-      phase2Triggered = true;
-      boss.phase2 = true;
-      scorePopups.push({ x: boss.x, y: boss.y - 60, text: 'ENOUGH!', life: 80 });
-      boss.x = (warChiefPhase2Platform.x + warChiefPhase2Platform.w/2) - boss.w/2;
-      boss.y = warChiefPhase2Platform.y - boss.h;
-      playSound('hit');
-    }
-  }
-
-  // Phase 2 boss boulder attack
-  for (const e of enemies) {
-    if (e.type !== 'war_chief' || !e.phase2) continue;
-    if (e.boulderCooldown > 0) e.boulderCooldown--;
-
-    // Throw boulders
-    if (e.boulderCooldown === 0 && Math.random() < 0.02) {
-      e.boulderCooldown = 60;
-      let targetX = player.x + player.w/2;
-      let dx = targetX - e.x;
-      let vy = -10 - Math.random() * 8;
-      projectiles.push({
-        x: e.x + e.w/2, y: e.y,
-        vx: (dx > 0 ? 1 : -1) * 4, vy: vy,
-        w: 12, h: 12, type: 'boulder', life: 300, fromEnemy: true,
-        damage: 2,
-      });
-    }
-  }
-
-  // FEATURE 10: Feast Table knockover
-  for (const f of feasts) {
-    if (f.tipped) {
-      f.tipTimer++;
-      if (f.tipTimer > 60 && !f.platformCreated) {
-        // Create temporary bridge platform
-        f.platformCreated = true;
-        tiles.push({
-          x: f.x, y: f.y + TILE,
-          w: 3 * TILE, h: TILE/2, type: 'log', logStart: false, logEnd: false, logLen: 3,
-        });
-        spawnParticles(f.x + f.w/2, f.y + f.h/2, '#8b4513', 12, 3);
-      }
-    } else if (player.attacking && rectOverlap(player, { x: f.x - 10, y: f.y - 10, w: f.w + 20, h: f.h + 20 })) {
-      f.tipped = true;
-      playSound('hit');
-    }
-  }
-
-  // FEATURE 11: Catapult update
-  for (const cat of catapults) {
-    if (cat.cooldown > 0) cat.cooldown--;
-
-    // Check if player on catapult and pressing down+jump
-    if (rectOverlap(player, { x: cat.x, y: cat.y - player.h, w: cat.w, h: cat.h + player.h })) {
-      if ((keys['ArrowDown'] || keys['KeyS']) && (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && cat.cooldown === 0) {
-        player.vy = -18;
-        player.grounded = false;
-        cat.cooldown = cat.maxCooldown;
-        spawnParticles(cat.x + cat.w/2, cat.y, '#8b4513', 15, 8);
-        playSound('jump');
-      }
-    }
-  }
-
-  // FEATURE 12: Watchtower Panoramic View
-  for (const wp of watchtowerPlatforms) {
-    if (wp.platform === 7 && rectOverlap(player, wp)) { // top platform
-      if (player.watchtowerTime === undefined) player.watchtowerTime = 0;
-      player.watchtowerTime++;
-      if (player.watchtowerTime >= 60) {
-        targetZoom = 0.7;
-        // Glow gems on watchtower
-        for (const c of collectibles) {
-          if (c.x >= wp.x - 3*TILE && c.x <= wp.x + TILE && c.type === 'gem') {
-            c.watchGlow = Math.min((c.watchGlow || 0) + 0.1, 1);
-          }
-        }
-        scorePopups.push({ x: player.x, y: player.y - 60, text: 'SCOUT VIEW', life: 60 });
-      }
-    } else {
-      if (player.watchtowerTime !== undefined && player.watchtowerTime > 0) {
-        targetZoom = 1.0;
-        player.watchtowerTime = 0;
-      }
-    }
-  }
-
-  // FEATURE 8: Goblin Drummers (they buff War Chief)
-  let drummersAlive = 0;
-  for (const d of drummers) {
-    if (d.hp > 0 && d.alive) {
-      drummersAlive++;
-    }
-    // Simple drum animation
-    d.drumAnimation = (d.drumAnimation || 0) + 0.15;
-  }
-  // Apply buff to War Chief if drummers alive
-  for (const e of enemies) {
-    if (e.type === 'war_chief') {
-      if (drummersAlive > 0) {
-        e.speedBuff = 1.5;
-      } else {
-        e.speedBuff = 1;
-      }
-    }
-  }
-
-  // FEATURE 9: Flaming Sword update
-  if (player.flamingSword) {
-    player.flamingSwordTimer--;
-    if (player.flamingSwordTimer <= 0) {
-      player.flamingSword = false;
     }
   }
 
@@ -13711,186 +12897,6 @@ function draw() {
     ctx.restore();
   }
 
-  // FEATURE 1: Draw Barrels
-  for (const h of hazards) {
-    if (h.type !== 'barrel') continue;
-    let bx = h.x - camera.x;
-    if (bx < -50 || bx > BASE_W + 50) continue;
-
-    ctx.save();
-    // Barrel body - brown/red
-    ctx.fillStyle = h.exploded ? '#888888' : '#8b4513';
-    ctx.beginPath();
-    ctx.ellipse(bx + h.w/2, h.y + h.h/2, h.w/2 - 2, h.h/2 - 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Barrel bands
-    ctx.strokeStyle = '#5a3a1a';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.ellipse(bx + h.w/2, h.y + h.h * 0.3, h.w/2 - 3, 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(bx + h.w/2, h.y + h.h * 0.7, h.w/2 - 3, 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    // Highlight
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(bx + h.w/2 - 3, h.y + 3, 3, 4);
-    ctx.restore();
-  }
-
-  // FEATURE 2: Draw Oil Puddles and Fire
-  for (const op of oilPuddles) {
-    let px = op.x - camera.x;
-    if (px < -50 || px > BASE_W + 50) continue;
-
-    ctx.save();
-    if (!op.ignited) {
-      // Dark oil slick
-      ctx.fillStyle = '#1a1410';
-      ctx.globalAlpha = 0.6;
-      ctx.beginPath();
-      ctx.ellipse(px + op.w/2, op.y, op.w/2, op.h, 0, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      // Animated flames
-      ctx.globalAlpha = 0.7;
-      for (let f = 0; f < 3; f++) {
-        let flameY = op.y - 4 - f * 4;
-        let flameX = px + op.w/2 + Math.sin(frameCount * 0.1 + f) * 3;
-        let flameHeight = 8 - f * 2;
-
-        // Orange/red flame
-        ctx.fillStyle = f === 0 ? '#ff4400' : '#ffaa00';
-        ctx.beginPath();
-        ctx.moveTo(flameX - 3, op.y);
-        ctx.lineTo(flameX, flameY);
-        ctx.lineTo(flameX + 3, op.y);
-        ctx.fill();
-      }
-      // Yellow center
-      ctx.fillStyle = '#ffff00';
-      ctx.globalAlpha = 0.5;
-      ctx.beginPath();
-      ctx.ellipse(px + op.w/2, op.y - 2, 2, 3, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // FEATURE 3: Draw Sleeping Goblins (with Zzz)
-  for (const sg of sleepingGoblins) {
-    if (sg.awoken) continue;
-    let sx = sg.x - camera.x;
-    if (sx < -40 || sx > BASE_W + 40) continue;
-
-    ctx.save();
-    // Simple sleeping goblin (green blob)
-    ctx.fillStyle = '#3a6a2a';
-    ctx.beginPath();
-    ctx.arc(sx + sg.w/2, sg.y + sg.h/2, sg.w/2, 0, Math.PI * 2);
-    ctx.fill();
-    // Eyes (closed)
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(sx + 6, sg.y + 6, 2, 1);
-    ctx.fillRect(sx + 14, sg.y + 6, 2, 1);
-    // Zzz animation
-    let zzzOffset = Math.sin(frameCount * 0.08) * 2;
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '10px Arial';
-    ctx.fillText('Z', sx + sg.w + 4, sg.y - 8 + zzzOffset);
-    ctx.fillText('z', sx + sg.w + 10, sg.y - 4 + zzzOffset * 0.5);
-    ctx.restore();
-  }
-
-  // FEATURE 4: Draw Prisoners
-  for (const p of prisoners) {
-    if (p.freed) continue;
-    let px = p.x - camera.x;
-    if (px < -40 || px > BASE_W + 40) continue;
-
-    ctx.save();
-    let bobY = p.y + p.bounceOffset;
-    // Simple prisoner figure
-    ctx.fillStyle = '#8b6914';  // tan/brown
-    ctx.beginPath();
-    ctx.arc(px + p.w/2, bobY + 6, 4, 0, Math.PI * 2);
-    ctx.fill();
-    // Body
-    ctx.fillRect(px + p.w/2 - 4, bobY + 10, 8, 10);
-    // Legs
-    ctx.fillRect(px + p.w/2 - 3, bobY + 20, 3, 6);
-    ctx.fillRect(px + p.w/2 + 1, bobY + 20, 3, 6);
-    // Stripes (cage)
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      ctx.moveTo(px + p.w/2 - 6 + i * 3, bobY + 6);
-      ctx.lineTo(px + p.w/2 - 6 + i * 3, bobY + 24);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  // FEATURE 5: Draw Ziplines
-  for (const zl of ziplines) {
-    let x1 = zl.x1 - camera.x;
-    let y1 = zl.y1;
-    let x2 = zl.x2 - camera.x;
-    let y2 = zl.y2;
-
-    if (x1 < -100 && x2 < -100) continue;
-    if (x1 > BASE_W + 100 && x2 > BASE_W + 100) continue;
-
-    ctx.save();
-    // Zipline cable
-    ctx.strokeStyle = '#333333';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
-
-    // Anchor points
-    ctx.fillStyle = '#666666';
-    ctx.beginPath();
-    ctx.arc(x1, y1, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(x2, y2, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Decorative anchor frames
-    ctx.strokeStyle = '#444444';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x1 - 6, y1 - 6, 12, 12);
-    ctx.strokeRect(x2 - 6, y2 - 6, 12, 12);
-    ctx.restore();
-  }
-
-  // FEATURE 6: Draw War Chief Phase 2 Platform
-  if (warChiefPhase2Platform && warChiefPhase2Platform.active) {
-    let px = warChiefPhase2Platform.x - camera.x;
-    let py = warChiefPhase2Platform.y;
-    if (px > -100 && px < BASE_W + 100) {
-      ctx.save();
-      // Log platform
-      ctx.fillStyle = '#5a3a1a';
-      ctx.fillRect(px, py, warChiefPhase2Platform.w, warChiefPhase2Platform.h);
-      // Log details
-      ctx.strokeStyle = '#3a2010';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 4; i++) {
-        ctx.beginPath();
-        ctx.moveTo(px + i * TILE, py);
-        ctx.lineTo(px + i * TILE, py + warChiefPhase2Platform.h);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-  }
-
   // FEATURE 7: Destructible Wall visual (crate style)
   for (const t of tiles) {
     if (t.type !== 'crate') continue;
@@ -13907,98 +12913,6 @@ function draw() {
     }
   }
 
-  // FEATURE 9: Draw Flaming Sword Pickup
-  for (const c of collectibles) {
-    if (c.type !== 'flaming_sword' || !c.alive) continue;
-    let sx = c.x - camera.x;
-    if (sx < -20 || sx > BASE_W + 20) continue;
-
-    ctx.save();
-    let glow = Math.sin(frameCount * 0.08) * 0.3 + 0.7;
-    ctx.globalAlpha = glow;
-    // Sword blade (orange/red)
-    ctx.fillStyle = '#ff6600';
-    ctx.fillRect(sx, c.y - 8, 4, 12);
-    // Flame aura
-    ctx.fillStyle = '#ffaa00';
-    ctx.beginPath();
-    ctx.arc(sx + 2, c.y - 4, 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#ffff00';
-    ctx.beginPath();
-    ctx.arc(sx + 2, c.y - 4, 3, 0, Math.PI * 2);
-    ctx.fill();
-    // Hilt
-    ctx.fillStyle = '#8b4513';
-    ctx.fillRect(sx + 1, c.y + 4, 2, 3);
-    ctx.restore();
-  }
-
-  // FEATURE 10: Draw Feast Table
-  for (const f of feasts) {
-    let fx = f.x - camera.x;
-    if (fx < -100 || fx > BASE_W + 100) continue;
-
-    ctx.save();
-    if (!f.tipped) {
-      // Table upright
-      ctx.fillStyle = '#8b6914';
-      ctx.fillRect(fx, f.y, f.w, f.h);
-      // Food items on table
-      ctx.fillStyle = '#ff6600';
-      for (let i = 0; i < 3; i++) {
-        ctx.beginPath();
-        ctx.arc(fx + 10 + i * 40, f.y + f.h/2, 4, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    } else {
-      // Table tipped
-      ctx.save();
-      ctx.translate(fx + f.w/2, f.y + f.h/2);
-      ctx.rotate(Math.PI / 4);
-      ctx.fillStyle = '#8b6914';
-      ctx.fillRect(-f.w/2, -f.h/2, f.w, f.h);
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-
-  // FEATURE 11: Draw Catapult
-  for (const cat of catapults) {
-    let cx = cat.x - camera.x;
-    if (cx < -50 || cx > BASE_W + 50) continue;
-
-    ctx.save();
-    // Catapult base
-    ctx.fillStyle = '#8b4513';
-    ctx.fillRect(cx, cat.y, cat.w, cat.h);
-    // Catapult arm (animated)
-    let armAngle = (cat.cooldown / cat.maxCooldown) * Math.PI * 0.4;
-    ctx.translate(cx + cat.w/2, cat.y + cat.h);
-    ctx.rotate(-armAngle);
-    ctx.fillStyle = '#5a3a1a';
-    ctx.fillRect(-2, -12, 4, 12);
-    ctx.fillRect(-8, -3, 16, 3);  // bucket
-    ctx.restore();
-  }
-
-  // FEATURE 12: Draw Watchtower (already placed as tiles, just add visual marker)
-  // The watchtower is visible via the log tiles we created
-  // Can draw a flag at the top
-  if (currentLevel === 4) {
-    for (const wp of watchtowerPlatforms) {
-      if (wp.platform === 7) {  // top platform
-        let wx = wp.x - camera.x;
-        if (wx > -50 && wx < BASE_W + 50) {
-          ctx.save();
-          ctx.fillStyle = '#dd2233';
-          ctx.globalAlpha = 0.8;
-          ctx.fillRect(wx + 4, wp.y - 20, 12, 8);
-          ctx.restore();
-        }
-      }
-    }
-  }
 
   // Draw Flaming Sword timer bar if active
   if (player.flamingSword) {
