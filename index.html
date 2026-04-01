@@ -2113,6 +2113,175 @@ function generateLevel1() {
     type: 'sparkle', phase: 0,
   });
 
+  // --- GOBLIN AMBUSH CAMPS (3 camps scattered across the level) ---
+  let ambushPositions = [
+    Math.floor(COLS * 0.18),
+    Math.floor(COLS * 0.45),
+    Math.floor(COLS * 0.72),
+  ];
+  for (let campCol of ambushPositions) {
+    // Skip if near rest zone or no ground
+    if (campCol * TILE > restZoneStart - 100 && campCol * TILE < restZoneEnd + 100) continue;
+    if (!hasGroundAt(campCol * TILE + TILE / 2)) continue;
+    // Small campfire decoration
+    decorations.push({
+      x: campCol * TILE + TILE / 2, y: groundY * TILE - 6,
+      type: 'ambush_campfire', phase: Math.random() * Math.PI * 2,
+    });
+    // 3 goblins that scatter when player approaches
+    for (let g = 0; g < 3; g++) {
+      let gx = (campCol - 1 + g) * TILE + 4;
+      if (!hasGroundAt(gx + 12)) continue;
+      enemies.push({
+        x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
+        vx: 0, vy: 0,
+        type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+        facing: g === 0 ? -1 : 1, attackCooldown: 0,
+        patrolOrigin: gx, patrolRange: 20,
+        animFrame: Math.random() * 100 | 0,
+        ambush: true, ambushTriggered: false, ambushCampX: campCol * TILE,
+      });
+    }
+  }
+
+  // --- FALLING TREE TRUNK SETPIECE (at ~20% of level) ---
+  let fallingTreeCol = Math.floor(COLS * 0.20);
+  // Find a gap near this position, or use it as-is
+  let ftGapCol = -1;
+  for (const gap of gapLocations) {
+    if (Math.abs(gap.col - fallingTreeCol) < 15) { ftGapCol = gap.col; break; }
+  }
+  if (ftGapCol === -1) ftGapCol = fallingTreeCol; // use position even without gap
+  // Place the fallen tree trigger zone — a dead tree in the background
+  hazards.push({
+    type: 'falling_tree',
+    x: (ftGapCol - 2) * TILE, y: (groundY - 6) * TILE,
+    w: TILE * 2, h: TILE * 6,
+    triggerX: (ftGapCol - 5) * TILE, // player X that triggers the fall
+    fallen: false, fallTimer: 0, fallAngle: 0,
+    bridgeCol: ftGapCol, bridgeLen: 5,
+    creaking: false, creakTimer: 0,
+  });
+
+  // --- MUSHROOM BOUNCE PADS (replace some mushroom spots with bouncy ones) ---
+  let bounceMushroomPositions = [
+    Math.floor(COLS * 0.15),
+    Math.floor(COLS * 0.38),
+    Math.floor(COLS * 0.58),
+    Math.floor(COLS * 0.82),
+  ];
+  for (let bmCol of bounceMushroomPositions) {
+    if (!hasGroundAt(bmCol * TILE + TILE / 2)) continue;
+    if (bmCol * TILE > restZoneStart - 50 && bmCol * TILE < restZoneEnd + 50) continue;
+    // Bounce mushroom hazard (not damaging — launches player)
+    hazards.push({
+      type: 'bounce_mushroom',
+      x: bmCol * TILE, y: (groundY) * TILE - 12,
+      w: TILE, h: 14,
+      bounceAnim: 0, color: ['#dd4466', '#ee8844', '#44bbdd', '#88dd44'][bounceMushroomPositions.indexOf(bmCol) % 4],
+    });
+    // Floating gem trail above (3 gems in an arc)
+    for (let g = 0; g < 3; g++) {
+      collectibles.push({
+        x: (bmCol) * TILE + 6 + (g - 1) * 14,
+        y: (groundY - 4 - g) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Heart at the peak of the highest bounce mushroom
+    if (bmCol === bounceMushroomPositions[1]) {
+      collectibles.push({
+        x: bmCol * TILE, y: (groundY - 7) * TILE,
+        w: 16, h: 16, type: 'heart', alive: true,
+      });
+    }
+  }
+
+  // --- ARCHER TOWER SECTION (at ~50%, right before midpoint campfire) ---
+  let towerCol = Math.floor(COLS * 0.48);
+  if (towerCol * TILE > restZoneStart) towerCol = Math.floor(COLS * 0.42);
+  // Tower: stacked log platforms going up 4 tiers
+  let towerPlatforms = [
+    { col: towerCol, row: groundY - 1, len: 4 },     // base
+    { col: towerCol + 1, row: groundY - 3, len: 3 },  // tier 2
+    { col: towerCol, row: groundY - 5, len: 3 },      // tier 3
+    { col: towerCol + 1, row: groundY - 7, len: 2 },  // top (archer perch)
+  ];
+  for (let p of towerPlatforms) {
+    for (let c = 0; c < p.len; c++) {
+      tiles.push({
+        x: (p.col + c) * TILE, y: p.row * TILE, w: TILE, h: TILE,
+        type: 'log', logStart: c === 0, logEnd: c === p.len - 1, logLen: p.len,
+      });
+    }
+  }
+  // Archer at top of tower
+  enemies.push({
+    x: (towerCol + 1) * TILE, y: (groundY - 8) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (towerCol + 1) * TILE, patrolRange: 0,
+    animFrame: 0, shootTimer: 70, windingUp: 0, aggro: false,
+    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+  });
+  // Shield goblin patrolling at base
+  enemies.push({
+    x: (towerCol - 2) * TILE, y: (groundY - 1) * TILE, w: 24, h: 28,
+    vx: 0.6, vy: 0, type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: (towerCol - 3) * TILE, patrolRange: 8 * TILE,
+    animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
+  });
+  // Gems along the climb
+  for (let p of towerPlatforms) {
+    collectibles.push({
+      x: (p.col + Math.floor(p.len / 2)) * TILE + 4, y: (p.row - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // Tower decoration (banner/flag at top)
+  decorations.push({
+    x: (towerCol + 2) * TILE, y: (groundY - 8) * TILE,
+    type: 'goblin_banner',
+  });
+
+  // --- DESTRUCTIBLE GOBLIN BARRICADES (3 spots with crates) ---
+  let barricadePositions = [
+    Math.floor(COLS * 0.28),
+    Math.floor(COLS * 0.52),
+    Math.floor(COLS * 0.75),
+  ];
+  for (let bCol of barricadePositions) {
+    if (!hasGroundAt(bCol * TILE + TILE / 2)) continue;
+    if (bCol * TILE > restZoneStart - 50 && bCol * TILE < restZoneEnd + 50) continue;
+    // Stack of crates blocking the path (2 wide, 2 tall)
+    for (let r = 0; r < 2; r++) {
+      for (let c = 0; c < 2; c++) {
+        tiles.push({
+          x: (bCol + c) * TILE, y: (groundY - 1 - r) * TILE,
+          w: TILE, h: TILE,
+          type: 'crate', hp: 2, maxHp: 2,
+        });
+      }
+    }
+    // Goblin behind barricade throwing things
+    let behindCol = bCol + 3;
+    if (hasGroundAt(behindCol * TILE + TILE / 2)) {
+      enemies.push({
+        x: behindCol * TILE, y: (groundY - 1) * TILE, w: 24, h: 28,
+        vx: 0, vy: 0,
+        type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+        facing: -1, attackCooldown: 0,
+        patrolOrigin: behindCol * TILE, patrolRange: 2 * TILE,
+        animFrame: Math.random() * 100 | 0,
+      });
+    }
+    // Gem reward behind barricade
+    collectibles.push({
+      x: (bCol + 1) * TILE + 4, y: (groundY - 3) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
   // Exit portal
   exitPortal = { x: (COLS - 6) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
 
@@ -7389,6 +7558,88 @@ function update() {
     }
   }
 
+  // --- Goblin ambush camp trigger ---
+  for (const e of enemies) {
+    if (!e.alive || !e.ambush || e.ambushTriggered) continue;
+    let dx = Math.abs((player.x + player.w / 2) - e.ambushCampX);
+    if (dx < TILE * 5) {
+      // Trigger all goblins at this camp
+      e.ambushTriggered = true;
+      e.patrolRange = 100 + Math.random() * 60;
+      // Scatter: give them velocity away from each other
+      e.vx = (e.x < e.ambushCampX ? -1 : 1) * (1.2 + Math.random() * 0.8);
+      e.vy = -3 - Math.random() * 2; // jump up in surprise
+      // Trigger all camp mates
+      for (const e2 of enemies) {
+        if (e2.ambush && !e2.ambushTriggered && e2.ambushCampX === e.ambushCampX) {
+          e2.ambushTriggered = true;
+          e2.patrolRange = 100 + Math.random() * 60;
+          e2.vx = (e2.x < e2.ambushCampX ? -1 : 1) * (1.2 + Math.random() * 0.8);
+          e2.vy = -3 - Math.random() * 2;
+        }
+      }
+      // Alert particles
+      spawnParticles(e.ambushCampX, (GROUND_Y - 1) * TILE, '#ff4444', 8, 3);
+      scorePopups.push({ x: e.ambushCampX, y: (GROUND_Y - 2) * TILE, text: 'AMBUSH!', life: 60 });
+      playSound('hit');
+      break;
+    }
+  }
+
+  // --- Falling tree trunk setpiece ---
+  for (const h of hazards) {
+    if (h.type !== 'falling_tree') continue;
+    if (h.fallen) continue;
+    if (!h.creaking) {
+      // Check if player is near trigger point
+      if (player.x > h.triggerX && player.x < h.triggerX + TILE * 6) {
+        h.creaking = true;
+        h.creakTimer = 60; // 1 second of creaking
+        playSound('hit');
+      }
+    } else if (h.creakTimer > 0) {
+      h.creakTimer--;
+      // Shake the tree during creak
+      h.shakeOffset = Math.sin(h.creakTimer * 0.8) * (60 - h.creakTimer) * 0.1;
+    } else {
+      // Fall!
+      h.fallTimer++;
+      h.fallAngle = Math.min(h.fallTimer * 0.03, Math.PI / 2);
+      if (h.fallAngle >= Math.PI / 2) {
+        h.fallen = true;
+        // Create bridge tiles where the tree landed
+        for (let c = 0; c < h.bridgeLen; c++) {
+          tiles.push({
+            x: (h.bridgeCol + c) * TILE, y: (GROUND_Y - 1) * TILE,
+            w: TILE, h: TILE,
+            type: 'log', logStart: c === 0, logEnd: c === h.bridgeLen - 1, logLen: h.bridgeLen,
+          });
+        }
+        shakeTimer = 12;
+        spawnParticles(h.bridgeCol * TILE + h.bridgeLen * TILE / 2, GROUND_Y * TILE, '#6a4a2a', 15, 5);
+        scorePopups.push({ x: h.x + TILE, y: h.y, text: 'PATH CLEARED!', life: 80 });
+        playSound('checkpoint');
+      }
+    }
+  }
+
+  // --- Bounce mushroom pads ---
+  for (const h of hazards) {
+    if (h.type !== 'bounce_mushroom') continue;
+    if (h.bounceAnim > 0) h.bounceAnim--;
+    // Check if player lands on top of mushroom
+    if (player.vy > 0 && player.grounded === false &&
+        player.x + player.w > h.x && player.x < h.x + h.w &&
+        player.y + player.h > h.y && player.y + player.h < h.y + h.h + 8 &&
+        player.y + player.h - player.vy <= h.y + 4) {
+      player.vy = -12; // strong upward bounce
+      player.grounded = false;
+      h.bounceAnim = 15;
+      spawnParticles(h.x + h.w / 2, h.y, h.color, 6, 2);
+      playSound('jump');
+    }
+  }
+
   // --- Thorn vine gates ---
   for (const h of hazards) {
     if (h.type !== 'thorn_vine_gate') continue;
@@ -10935,6 +11186,149 @@ function draw() {
       ctx.lineTo(px, py);
       ctx.stroke();
     }
+  }
+
+  // --- Ambush campfire decorations ---
+  for (const d of decorations) {
+    if (d.type !== 'ambush_campfire') continue;
+    let dx2 = d.x - camera.x;
+    if (dx2 < -30 || dx2 > BASE_W + 30) continue;
+    ctx.save();
+    // Small campfire embers
+    ctx.fillStyle = '#553322';
+    ctx.fillRect(dx2 - 6, d.y, 12, 4); // log base
+    ctx.fillRect(dx2 - 3, d.y - 2, 6, 2);
+    // Flickering flames
+    let flicker = Math.sin(frameCount * 0.15 + (d.phase || 0));
+    ctx.globalAlpha = 0.7 + flicker * 0.2;
+    ctx.fillStyle = '#ff6622';
+    ctx.beginPath();
+    ctx.moveTo(dx2 - 4, d.y);
+    ctx.lineTo(dx2, d.y - 8 - flicker * 3);
+    ctx.lineTo(dx2 + 4, d.y);
+    ctx.fill();
+    ctx.fillStyle = '#ffaa33';
+    ctx.beginPath();
+    ctx.moveTo(dx2 - 2, d.y);
+    ctx.lineTo(dx2, d.y - 5 - flicker * 2);
+    ctx.lineTo(dx2 + 2, d.y);
+    ctx.fill();
+    // Smoke wisps
+    ctx.globalAlpha = 0.15;
+    ctx.fillStyle = '#999';
+    let smokeY = d.y - 12 - (frameCount * 0.3 + d.phase * 10) % 20;
+    ctx.beginPath();
+    ctx.arc(dx2 + Math.sin(frameCount * 0.05) * 3, smokeY, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // --- Goblin banner decoration (on archer tower) ---
+  for (const d of decorations) {
+    if (d.type !== 'goblin_banner') continue;
+    let dx2 = d.x - camera.x;
+    if (dx2 < -30 || dx2 > BASE_W + 30) continue;
+    ctx.save();
+    // Pole
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(dx2, d.y - 20, 2, 24);
+    // Banner cloth (waves in wind)
+    let wave = Math.sin(frameCount * 0.06) * 3;
+    ctx.fillStyle = '#882233';
+    ctx.beginPath();
+    ctx.moveTo(dx2 + 2, d.y - 18);
+    ctx.lineTo(dx2 + 16 + wave, d.y - 15);
+    ctx.lineTo(dx2 + 14 + wave * 0.5, d.y - 8);
+    ctx.lineTo(dx2 + 2, d.y - 5);
+    ctx.fill();
+    // Skull emblem
+    ctx.fillStyle = '#ccbb99';
+    ctx.beginPath();
+    ctx.arc(dx2 + 9 + wave * 0.5, d.y - 12, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#882233';
+    ctx.fillRect(dx2 + 7 + wave * 0.5, d.y - 12, 1.5, 1.5);
+    ctx.fillRect(dx2 + 10 + wave * 0.5, d.y - 12, 1.5, 1.5);
+    ctx.restore();
+  }
+
+  // --- Falling tree trunk setpiece ---
+  for (const h of hazards) {
+    if (h.type !== 'falling_tree') continue;
+    let fx = h.x - camera.x;
+    if (fx < -200 || fx > BASE_W + 200) continue;
+    ctx.save();
+    if (!h.fallen) {
+      // Standing or falling dead tree
+      let shakeOff = h.shakeOffset || 0;
+      let angle = h.fallAngle || 0;
+      ctx.translate(fx + TILE, h.y + h.h); // pivot at base
+      ctx.rotate(angle);
+      // Trunk
+      ctx.fillStyle = '#4a3018';
+      ctx.fillRect(-8 + shakeOff, -h.h, 16, h.h);
+      // Bark details
+      ctx.fillStyle = '#3a2010';
+      ctx.fillRect(-6 + shakeOff, -h.h + 10, 4, 8);
+      ctx.fillRect(-4 + shakeOff, -h.h + 30, 6, 6);
+      ctx.fillRect(-7 + shakeOff, -h.h + 55, 3, 10);
+      // Dead branches
+      ctx.strokeStyle = '#5a3a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-8 + shakeOff, -h.h + 20);
+      ctx.lineTo(-20 + shakeOff, -h.h + 10);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(8 + shakeOff, -h.h + 40);
+      ctx.lineTo(22 + shakeOff, -h.h + 30);
+      ctx.stroke();
+      // Creaking indicator
+      if (h.creaking && h.creakTimer > 0) {
+        ctx.globalAlpha = 0.6;
+        ctx.fillStyle = '#ffaa22';
+        ctx.font = '10px monospace';
+        ctx.fillText('CREAK!', -15, -h.h - 5);
+      }
+    }
+    ctx.restore();
+  }
+
+  // --- Bounce mushroom pads ---
+  for (const h of hazards) {
+    if (h.type !== 'bounce_mushroom') continue;
+    let bx = h.x - camera.x;
+    if (bx < -30 || bx > BASE_W + 30) continue;
+    ctx.save();
+    let squish = h.bounceAnim > 0 ? Math.sin(h.bounceAnim * 0.3) * 4 : 0;
+    // Stem
+    ctx.fillStyle = '#e8dcc8';
+    ctx.fillRect(bx + TILE / 2 - 3, h.y + 4 + squish, 6, 10 - squish);
+    // Cap
+    ctx.fillStyle = h.color;
+    ctx.beginPath();
+    ctx.ellipse(bx + TILE / 2, h.y + 2 + squish, 14, 8 - squish * 0.5, 0, Math.PI, Math.PI * 2);
+    ctx.fill();
+    // Spots
+    ctx.fillStyle = '#ffffff';
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.arc(bx + TILE / 2 - 5, h.y - 1 + squish, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx + TILE / 2 + 4, h.y - 2 + squish, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(bx + TILE / 2 + 1, h.y - 4 + squish, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Glow ring when ready
+    ctx.globalAlpha = 0.15 + Math.sin(frameCount * 0.08) * 0.08;
+    ctx.strokeStyle = h.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(bx + TILE / 2, h.y + squish, 16, 10, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // (Waterfall curtains removed)
