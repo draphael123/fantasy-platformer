@@ -1578,11 +1578,14 @@ function generateLevel() {
   collectibles = [];
   projectiles = [];
   crackWallHits = {}; // track hits on cracked walls {tileIndex: hitCount}
+  throneRoomTorches.length = 0; // reset Level 5 torches
   // Set level length — all main levels are long, tutorial stays shorter
   if (currentLevel === 0) {
     COLS = Math.ceil(BASE_W / TILE) + 120; // tutorial stays shorter
   } else if (currentLevel === 4) {
     COLS = Math.ceil(BASE_W / TILE) + 90; // Level 4: The Hollow Root — small enclosed room
+  } else if (currentLevel === 5) {
+    COLS = Math.ceil(BASE_W / TILE) + 60; // Level 5: Boss arena — compact
   } else {
     COLS = Math.ceil(BASE_W / TILE) + 360; // all other main levels are long
   }
@@ -2779,14 +2782,22 @@ function generateLevel2() {
 
     // Add archers or goblins on these platforms for challenge
     let enemyType = Math.random() > 0.5 ? 'archer' : 'goblin';
-    enemies.push({
-      x: (i + Math.floor(platLen / 2)) * TILE, y: (platRow - 2) * TILE, w: 32, h: 32,
+    let epx = (i + Math.floor(platLen / 2)) * TILE;
+    let epEnemy = {
+      x: epx, y: (platRow - 1) * TILE, w: 24, h: 28,
       vx: 0, vy: 0,
       type: enemyType, hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
       facing: -1, attackCooldown: 0,
-      patrolOrigin: i * TILE, patrolRange: 4 * TILE,
+      patrolOrigin: i * TILE, patrolRange: platLen * TILE,
       animFrame: 0, grounded: false,
-    });
+    };
+    if (enemyType === 'archer') {
+      epEnemy.shootTimer = 80 + Math.floor(Math.random() * 60);
+      epEnemy.windingUp = 0;
+      epEnemy.aggro = false;
+      epEnemy.patrolRange = 0;
+    }
+    enemies.push(epEnemy);
 
     // Gem reward on platform
     collectibles.push({
@@ -13154,6 +13165,15 @@ function startLevel(lvl) {
   screenShake = { x: 0, y: 0, intensity: 0, decayRate: 0.9 };
   bossEntranceCard = null;
   swordTrail = []; splashes = []; grassSwirls = [];
+  // Reset all visual effect arrays to prevent accumulation across levels
+  bgBirds = []; weatherParticles = []; dustMotes = []; waterRipples = [];
+  torchLights = []; foamParticles = []; owlEyes = []; waterfallMists = [];
+  fishJumps = []; butterflies = []; bloomingFlowers = [];
+  drippingStalactites = []; glowingMushrooms = []; caveEchoRipples = [];
+  groundFog = []; crumblingDebris = []; dodgeRollAfterimages = [];
+  lastPlayerPositions = []; playerVisualEffects = [];
+  gemSparkleEffects = []; healthGlows = []; collectionBursts = [];
+  capePoints = []; styleAttackTypes = [];
   damageFlash = 0; checkpoint = null; respawnPoint = { x: 80, y: 300 };
   screenFlash = { alpha: 0, color: '#fff' };
   frameCount = 0; camera.x = 0; camera.y = 0; shakeTimer = 0;
