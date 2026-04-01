@@ -321,7 +321,16 @@ function loadSave() {
            stars: {} };
   try {
     let data = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (data) return Object.assign(defaults, data);
+    if (data) {
+      // Backwards compat: old saves used 'highestLevel' instead of 'highestUnlocked'
+      if (data.highestLevel && !data.highestUnlocked) {
+        data.highestUnlocked = data.highestLevel;
+      }
+      if (data.highestLevel && data.highestLevel > (data.highestUnlocked || 1)) {
+        data.highestUnlocked = data.highestLevel;
+      }
+      return Object.assign(defaults, data);
+    }
   } catch(e) {}
   return defaults;
 }
