@@ -2639,6 +2639,100 @@ function generateLevel1() {
     w: 16, h: 16, type: 'heart', alive: true,
   });
 
+  // --- GOBLIN VILLAGE RAID SETPIECE (at ~60%) ---
+  let villageCol = Math.floor(COLS * 0.60);
+  // Make sure we're on solid ground
+  while (!hasGroundAt(villageCol * TILE + TILE / 2) && villageCol < COLS - 30) villageCol++;
+  if (hasGroundAt(villageCol * TILE + TILE / 2)) {
+    // Hut decorations (3 huts in a cluster)
+    decorations.push({ x: (villageCol - 2) * TILE, y: groundY * TILE, type: 'goblin_hut', size: 1.0 });
+    decorations.push({ x: (villageCol + 3) * TILE, y: groundY * TILE, type: 'goblin_hut', size: 0.8 });
+    decorations.push({ x: (villageCol + 7) * TILE, y: groundY * TILE, type: 'goblin_hut', size: 1.1 });
+    // Central campfire (larger than ambush campfires)
+    decorations.push({
+      x: (villageCol + 2) * TILE + TILE / 2, y: groundY * TILE - 6,
+      type: 'ambush_campfire', phase: 0, large: true,
+    });
+    // Wooden stockade walls on both sides (breakable crates)
+    for (let r = 0; r < 3; r++) {
+      tiles.push({ x: (villageCol - 4) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
+      tiles.push({ x: (villageCol + 10) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
+    }
+    // Gem cage in the center (breakable, 3 HP, with 8 gems inside)
+    tiles.push({
+      x: (villageCol + 4) * TILE, y: (groundY - 1) * TILE, w: TILE * 2, h: TILE * 2,
+      type: 'crate', hp: 3, maxHp: 3,
+    });
+    // Gems inside the cage (revealed when destroyed)
+    for (let g = 0; g < 8; g++) {
+      collectibles.push({
+        x: (villageCol + 4) * TILE + 4 + (g % 4) * 14,
+        y: (groundY - 1) * TILE + (g < 4 ? 4 : 18),
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Heart reward inside cage too
+    collectibles.push({
+      x: (villageCol + 5) * TILE, y: (groundY - 2) * TILE,
+      w: 16, h: 16, type: 'heart', alive: true,
+    });
+    // 5 village defender goblins
+    for (let g = 0; g < 5; g++) {
+      let gx = (villageCol - 1 + g * 2) * TILE + 4;
+      if (!hasGroundAt(gx + 12)) continue;
+      enemies.push({
+        x: gx, y: (groundY - 1) * TILE, w: 24, h: 28,
+        vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
+        type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+        facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
+        patrolOrigin: gx, patrolRange: 3 * TILE,
+        animFrame: Math.random() * 100 | 0,
+        aggro: true, // these are aggressive village defenders
+      });
+    }
+    // Skull-on-stick decorations for menace
+    decorations.push({ x: (villageCol - 3) * TILE, y: groundY * TILE, type: 'skull_stick' });
+    decorations.push({ x: (villageCol + 9) * TILE, y: groundY * TILE, type: 'skull_stick' });
+    // Signpost near entrance
+    decorations.push({ x: (villageCol - 6) * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Goblin', text2: 'Territory!' });
+  }
+
+  // --- CANOPY COLLAPSE SPRINT (at ~80%) ---
+  let collapseCol = Math.floor(COLS * 0.80);
+  while (!hasGroundAt(collapseCol * TILE + TILE / 2) && collapseCol < COLS - 20) collapseCol++;
+  if (hasGroundAt(collapseCol * TILE + TILE / 2)) {
+    // Warning sign
+    decorations.push({ x: (collapseCol - 3) * TILE, y: groundY * TILE, type: 'tutSign', text1: 'DANGER!', text2: 'RUN!!!' });
+    // 10-tile sprint section with falling debris hazards
+    for (let i = 0; i < 10; i++) {
+      hazards.push({
+        type: 'falling_debris',
+        x: (collapseCol + i) * TILE + Math.random() * TILE * 0.5,
+        y: (groundY - 8) * TILE,
+        w: TILE, h: TILE,
+        baseY: (groundY - 8) * TILE,
+        targetY: (groundY - 1) * TILE,
+        fallDelay: i * 18 + Math.random() * 10, // sequential timing
+        fallTimer: 0,
+        fallen: false,
+        falling: false,
+        shakeAmount: 0,
+      });
+    }
+    // Gem trail to encourage sprinting forward
+    for (let i = 0; i < 10; i++) {
+      collectibles.push({
+        x: (collapseCol + i) * TILE + 10, y: (groundY - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Heart reward at the end of the sprint
+    collectibles.push({
+      x: (collapseCol + 10) * TILE, y: (groundY - 1) * TILE,
+      w: 16, h: 16, type: 'heart', alive: true,
+    });
+  }
+
   // --- WOLF SHADOW DASHES (parallax wolf silhouettes during howl) ---
   // Stored as decorations, animated in draw when wolfHowlVignette > 0
   for (let i = 0; i < 4; i++) {
@@ -3404,6 +3498,61 @@ function generateLevel2() {
     w: 16, h: 16, type: 'heart', alive: true,
   });
 
+  // --- SUNKEN RUINS SETPIECE (at ~40% of water zone) ---
+  let ruinsWfCol = Math.floor(waterStart + (waterEnd - waterStart) * 0.4);
+  let ruinsRow = groundY - 1;
+  // Stone platform base (wider and more solid than logs)
+  for (let c = 0; c < 6; c++) {
+    tiles.push({
+      x: (ruinsWfCol + c) * TILE, y: ruinsRow * TILE, w: TILE, h: TILE,
+      type: 'ground', // solid stone, not collapsing
+    });
+  }
+  // Mossy stone pillars rising from the ruins
+  for (let r = 0; r < 3; r++) {
+    tiles.push({ x: ruinsWfCol * TILE, y: (ruinsRow - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (ruinsWfCol + 5) * TILE, y: (ruinsRow - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Ancient arch decoration between pillars
+  decorations.push({
+    type: 'ruin', x: (ruinsWfCol + 1) * TILE, y: (ruinsRow - 3) * TILE,
+  });
+  // Hidden alcove underneath (below water line) with gems
+  for (let c = 1; c < 5; c++) {
+    tiles.push({ x: (ruinsWfCol + c) * TILE, y: (ruinsRow + 2) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Walls for the underwater alcove
+  tiles.push({ x: ruinsWfCol * TILE, y: (ruinsRow + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  tiles.push({ x: (ruinsWfCol + 5) * TILE, y: (ruinsRow + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  // 5 gems in the underwater alcove
+  for (let g = 0; g < 5; g++) {
+    collectibles.push({
+      x: (ruinsWfCol + 1 + g) * TILE + 4, y: (ruinsRow + 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // Surface gems and heart on the ruins platform
+  for (let g = 0; g < 3; g++) {
+    collectibles.push({
+      x: (ruinsWfCol + 1 + g * 2) * TILE + 4, y: (ruinsRow - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  collectibles.push({
+    x: (ruinsWfCol + 3) * TILE, y: (ruinsRow - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+  // Torches on pillars
+  decorations.push({ type: 'torch', x: ruinsWfCol * TILE, y: (ruinsRow - 4) * TILE - 8 });
+  decorations.push({ type: 'torch', x: (ruinsWfCol + 5) * TILE, y: (ruinsRow - 4) * TILE - 8 });
+  // Moss and atmosphere
+  for (let i = 0; i < 4; i++) {
+    decorations.push({
+      x: (ruinsWfCol + 1 + i) * TILE + Math.random() * 10, y: ruinsRow * TILE - 2,
+      type: 'fog', width: 30 + Math.random() * 20, phase: Math.random() * Math.PI * 2,
+    });
+  }
+
   // --- Additional water platforming challenges ---
   // Extra stone/log platforms over water gaps for more challenging platforming
   let waterPlatformZoneStart = waterStart + Math.floor((waterEnd - waterStart) * 0.3);
@@ -3554,7 +3703,7 @@ function generateLevel2() {
     collectibles.push({ x: (ePlatCol + 1) * TILE, y: (ePlatRow - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
   }
 
-  // --- Rising water hazard in water zone ---
+  // --- Rising water hazard in water zone — triggers at ~50%, rises dramatically, then recedes ---
   hazards.push({
     type: 'rising_water',
     x: waterStart * TILE,
@@ -3562,10 +3711,14 @@ function generateLevel2() {
     w: (waterEnd - waterStart) * TILE,
     h: TILE * 6,
     baseY: (groundY + 2) * TILE,
-    maxRise: TILE * 2,
-    riseSpeed: 0.03,
+    maxRise: TILE * 3,
+    riseSpeed: 0.08,
     riseTimer: 0,
     active: false,
+    triggerX: Math.floor(waterStart + (waterEnd - waterStart) * 0.5) * TILE, // triggers at 50% of water zone
+    receding: false,
+    recedeDelay: 600, // 10 seconds at 60fps before receding
+    recedeTimer: 0,
   });
 
   // (barrel ride removed)
@@ -3791,6 +3944,70 @@ function generateLevel3() {
     decorations.push({ x: gustX + gustW / 2, y: (Math.min(bp.row, next.row)) * TILE, type: 'windMarker', dir: gustDir });
   }
 
+  // --- SECRET TREE HOLLOW (at ~35% — hidden bioluminescent chamber) ---
+  let hollowIdx = Math.floor(branchPlatforms.length * 0.35);
+  let hollowPlat = branchPlatforms[hollowIdx];
+  if (hollowPlat && hollowPlat.len >= 3) {
+    let hollowCol = hollowPlat.col;
+    let hollowRow = hollowPlat.row;
+    // Vine-covered entrance hint (decoration on the platform)
+    decorations.push({
+      x: (hollowCol + 1) * TILE, y: hollowRow * TILE - 4,
+      type: 'vine', length: 5, phase: 0,
+    });
+    decorations.push({
+      x: (hollowCol + 1) * TILE + 8, y: hollowRow * TILE,
+      type: 'sparkle', phase: Math.random() * Math.PI * 2,
+    });
+    // Hidden chamber below the platform (drop down through a 2-tile gap)
+    // Remove 2 tiles from this platform to create entrance hole
+    tiles = tiles.filter(t => !(t.x >= (hollowCol + 1) * TILE && t.x < (hollowCol + 3) * TILE && t.y === hollowRow * TILE));
+    // Chamber walls and floor (5 tiles wide, 4 tiles below)
+    let chamberRow = hollowRow + 4;
+    for (let c = -1; c <= 5; c++) {
+      tiles.push({ x: (hollowCol + c) * TILE, y: chamberRow * TILE, w: TILE, h: TILE, type: 'dirt' }); // floor
+    }
+    for (let r = 1; r <= 4; r++) {
+      tiles.push({ x: (hollowCol - 1) * TILE, y: (hollowRow + r) * TILE, w: TILE, h: TILE, type: 'dirt' }); // left wall
+      tiles.push({ x: (hollowCol + 5) * TILE, y: (hollowRow + r) * TILE, w: TILE, h: TILE, type: 'dirt' }); // right wall
+    }
+    // Bioluminescent mushroom decorations inside
+    for (let m = 0; m < 4; m++) {
+      decorations.push({
+        x: (hollowCol + m + 0.5) * TILE, y: chamberRow * TILE - 8,
+        type: 'glowFlower',
+        color: ['#44ffcc', '#88eeff', '#cc88ff', '#44ff88'][m],
+        phase: m * Math.PI / 2,
+      });
+    }
+    // 8 gems inside the hollow
+    for (let g = 0; g < 8; g++) {
+      collectibles.push({
+        x: (hollowCol + (g % 4)) * TILE + 10,
+        y: (chamberRow - 1) * TILE + (g < 4 ? 4 : 18),
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Heart in the center
+    collectibles.push({
+      x: (hollowCol + 2) * TILE, y: (chamberRow - 1) * TILE,
+      w: 16, h: 16, type: 'heart', alive: true,
+    });
+    // Exit: leaf bounce pad back up (on the floor of chamber)
+    tiles.push({
+      x: (hollowCol + 3) * TILE, y: (chamberRow - 1) * TILE, w: TILE, h: TILE / 2,
+      type: 'leaf_bounce', bounceAnim: 0,
+    });
+    // Fireflies inside for atmosphere
+    for (let f = 0; f < 5; f++) {
+      decorations.push({
+        x: (hollowCol + f) * TILE + Math.random() * 16,
+        y: (hollowRow + 2) * TILE + Math.random() * 32,
+        type: 'firefly', phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
   // --- Vertical bounce loop section (around 40% of level) ---
   let bounceLoopIdx = Math.floor(branchPlatforms.length * 0.4);
   let blPlat = branchPlatforms[bounceLoopIdx];
@@ -3831,6 +4048,51 @@ function generateLevel3() {
     });
     // Decoration marker
     decorations.push({ x: (blCol + 1) * TILE, y: blBaseRow * TILE - 16, type: 'bounceLoopSign' });
+  }
+
+  // --- CLOUD BREAK VISTA (at ~50% — canopy opens to reveal sky panorama) ---
+  let vistaIdx = Math.floor(branchPlatforms.length * 0.5);
+  if (vistaIdx > 0 && vistaIdx < branchPlatforms.length) {
+    let vistaPlat = branchPlatforms[vistaIdx];
+    // Mark ~10 platforms around the vista as being in the "open sky" zone
+    let vistaStartIdx = Math.max(0, vistaIdx - 5);
+    let vistaEndIdx = Math.min(branchPlatforms.length - 1, vistaIdx + 5);
+    for (let vi = vistaStartIdx; vi <= vistaEndIdx; vi++) {
+      branchPlatforms[vi].vistaZone = true;
+    }
+    // Store vista zone X range for draw code
+    let vistaStartX = branchPlatforms[vistaStartIdx].col * TILE;
+    let vistaEndX = (branchPlatforms[vistaEndIdx].col + branchPlatforms[vistaEndIdx].len) * TILE;
+    hazards.push({
+      type: 'vista_zone',
+      x: vistaStartX,
+      y: 0,
+      w: vistaEndX - vistaStartX,
+      h: BASE_H * 2,
+      active: false,
+      fadeIn: 0, // 0-1 transition
+    });
+    // Bird silhouettes in the vista zone
+    for (let b = 0; b < 6; b++) {
+      decorations.push({
+        x: vistaStartX + Math.random() * (vistaEndX - vistaStartX),
+        y: -40 + Math.random() * 80,
+        type: 'vista_bird',
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.8 + Math.random() * 1.2,
+        dir: Math.random() < 0.5 ? 1 : -1,
+      });
+    }
+    // Bonus gems floating in the open sky (above platforms)
+    for (let g = 0; g < 5; g++) {
+      let gPlat = branchPlatforms[vistaStartIdx + g];
+      if (!gPlat) continue;
+      collectibles.push({
+        x: (gPlat.col + Math.floor(gPlat.len / 2)) * TILE + 4,
+        y: (gPlat.row - 3) * TILE,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
   }
 
   // --- Cracking branch sprint platform (around 60% of level) ---
@@ -7979,12 +8241,26 @@ function update() {
   // --- Rising water ---
   for (const h of hazards) {
     if (h.type !== 'rising_water') continue;
-    if (player.x > h.x && player.x < h.x + h.w) {
+    // Trigger at specific X position instead of entire water zone
+    if (h.triggerX && player.x > h.triggerX && !h.active) {
+      h.active = true;
+    } else if (!h.triggerX && player.x > h.x && player.x < h.x + h.w) {
       h.active = true;
     }
-    if (h.active && h.y > h.baseY - h.maxRise) {
+    if (h.active && !h.receding && h.y > h.baseY - h.maxRise) {
       h.y -= h.riseSpeed;
       h.riseTimer++;
+    }
+    // Start receding after max rise + delay
+    if (h.active && h.y <= h.baseY - h.maxRise && !h.receding) {
+      h.recedeTimer = (h.recedeTimer || 0) + 1;
+      if (h.recedeTimer >= (h.recedeDelay || 600)) {
+        h.receding = true;
+      }
+    }
+    // Recede back down
+    if (h.receding && h.y < h.baseY) {
+      h.y += h.riseSpeed * 0.5; // recede slower than rise
     }
     if (h.active && player.y + player.h > h.y + 12 && player.x > h.x && player.x < h.x + h.w && player.invincible <= 0) {
       player.hp--;
@@ -7992,6 +8268,54 @@ function update() {
       player.vy = -8; // strong push up to help escape
       spawnParticles(player.x + player.w/2, h.y, '#3498db', 8, 4);
       scorePopups.push({ x: player.x + player.w/2, y: player.y - 10, text: 'DROWNING!', life: 40 });
+    }
+  }
+
+  // --- Falling debris (canopy collapse) ---
+  for (const h of hazards) {
+    if (h.type !== 'falling_debris') continue;
+    // Trigger when player is nearby
+    let debrisDist = Math.abs((player.x + player.w/2) - h.x);
+    if (debrisDist < TILE * 12 && !h.fallen && !h.falling) {
+      h.fallTimer++;
+      if (h.fallTimer >= h.fallDelay) {
+        h.falling = true;
+        h.shakeAmount = 3;
+      }
+    }
+    if (h.falling && !h.fallen) {
+      h.y += 4; // fall speed
+      h.shakeAmount = Math.max(0, h.shakeAmount - 0.1);
+      if (h.y >= h.targetY) {
+        h.y = h.targetY;
+        h.fallen = true;
+        shakeTimer = Math.max(shakeTimer, 3);
+        spawnParticles(h.x + TILE/2, h.y, '#8a7a5a', 6, 4);
+        playSound('hit');
+      }
+      // Damage player during fall
+      let debrisRect = { x: h.x, y: h.y, w: h.w, h: h.h };
+      if (rectOverlap(player, debrisRect) && player.invincible <= 0 && !player.dodging) {
+        player.hp--;
+        damageTaken = true;
+        player.invincible = 45;
+        player.vy = -4;
+        playerDamageFlash = 8;
+        playSound('hurt');
+        spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ff4444', 6, 4);
+      }
+    }
+  }
+
+  // --- Vista zone (cloud break) ---
+  for (const h of hazards) {
+    if (h.type !== 'vista_zone') continue;
+    let inZone = player.x > h.x - 100 && player.x < h.x + h.w + 100;
+    if (inZone && h.fadeIn < 1) {
+      h.fadeIn = Math.min(1, h.fadeIn + 0.01); // slow fade in
+      h.active = true;
+    } else if (!inZone && h.fadeIn > 0) {
+      h.fadeIn = Math.max(0, h.fadeIn - 0.02); // faster fade out
     }
   }
 
@@ -10038,6 +10362,39 @@ function drawDecorations() {
       ctx.fillText(d.text1, sx + 32, baseY - 50);
       ctx.fillText(d.text2, sx + 32, baseY - 39);
       ctx.textAlign = 'left';
+    } else if (d.type === 'goblin_hut') {
+      let hx2 = d.x - camX;
+      let hy2 = d.y - camY;
+      let hs = d.size || 1;
+      // Hut body (brown wood)
+      ctx.fillStyle = '#6B4226';
+      ctx.fillRect(hx2, hy2 - 28 * hs, 36 * hs, 28 * hs);
+      // Roof (straw/thatch triangle)
+      ctx.fillStyle = '#8B7355';
+      ctx.beginPath();
+      ctx.moveTo(hx2 - 6 * hs, hy2 - 28 * hs);
+      ctx.lineTo(hx2 + 18 * hs, hy2 - 46 * hs);
+      ctx.lineTo(hx2 + 42 * hs, hy2 - 28 * hs);
+      ctx.closePath();
+      ctx.fill();
+      // Door
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(hx2 + 12 * hs, hy2 - 18 * hs, 12 * hs, 18 * hs);
+    } else if (d.type === 'skull_stick') {
+      let sx2 = d.x - camX;
+      let sy2 = d.y - camY;
+      // Stick
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(sx2 + 4, sy2 - 32, 3, 32);
+      // Skull (circle + jaw)
+      ctx.fillStyle = '#e8e0d0';
+      ctx.beginPath();
+      ctx.arc(sx2 + 6, sy2 - 36, 6, 0, Math.PI * 2);
+      ctx.fill();
+      // Eye sockets
+      ctx.fillStyle = '#2a1a0a';
+      ctx.fillRect(sx2 + 3, sy2 - 38, 2, 2);
+      ctx.fillRect(sx2 + 7, sy2 - 38, 2, 2);
     } else if (d.type === 'frog') {
       // Small frog that hops when player is near
       let frogDist = Math.abs((player.x + player.w / 2) - d.x);
@@ -10233,6 +10590,35 @@ function drawDecorations() {
         }
       }
       ctx.restore();
+    } else if (d.type === 'vista_bird') {
+      // Check if we're in a vista zone
+      let inVista = false;
+      let vistaFade = 0;
+      for (const h of hazards) {
+        if (h.type === 'vista_zone' && h.fadeIn > 0) {
+          if (d.x > h.x - 200 && d.x < h.x + h.w + 200) {
+            inVista = true;
+            vistaFade = h.fadeIn;
+          }
+        }
+      }
+      if (inVista) {
+        let bx = d.x + Math.sin(frameCount * 0.01 + d.phase) * 60 * d.dir - camX;
+        let by = d.y + Math.sin(frameCount * 0.008 + d.phase) * 20 - camY;
+        ctx.save();
+        ctx.globalAlpha = vistaFade * 0.5;
+        ctx.fillStyle = '#2c3e50';
+        // Simple bird V shape
+        ctx.beginPath();
+        let wingFlap = Math.sin(frameCount * 0.1 + d.phase) * 4;
+        ctx.moveTo(bx - 6, by + wingFlap);
+        ctx.lineTo(bx, by);
+        ctx.lineTo(bx + 6, by + wingFlap);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
+        ctx.restore();
+      }
     } else if (d.type === 'bounceLoopSign') {
       // Arrow pointing up to indicate bounce section
       ctx.save();
@@ -11688,6 +12074,42 @@ function draw() {
     ctx.fill();
   }
 
+  // --- Vista zone (cloud break) sky rendering ---
+  for (const h of hazards) {
+    if (h.type !== 'vista_zone' || h.fadeIn <= 0) continue;
+    let vx = h.x - camX;
+    ctx.save();
+    ctx.globalAlpha = h.fadeIn * 0.6;
+    // Bright sky gradient replacing dark canopy
+    let skyGrad = ctx.createLinearGradient(vx, 0, vx, canvas.height);
+    skyGrad.addColorStop(0, '#87CEEB');
+    skyGrad.addColorStop(0.4, '#B0E0FF');
+    skyGrad.addColorStop(1, '#E8F4FD');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(vx, 0, h.w, canvas.height);
+    // Distant mountains
+    ctx.globalAlpha = h.fadeIn * 0.3;
+    ctx.fillStyle = '#6B8BA4';
+    ctx.beginPath();
+    ctx.moveTo(vx, canvas.height * 0.7);
+    for (let mx = 0; mx < h.w; mx += 30) {
+      ctx.lineTo(vx + mx, canvas.height * 0.5 + Math.sin(mx * 0.01) * 40 + Math.cos(mx * 0.007) * 25);
+    }
+    ctx.lineTo(vx + h.w, canvas.height * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    // Sun glow
+    ctx.globalAlpha = h.fadeIn * 0.15;
+    let sunX = vx + h.w * 0.6;
+    let sunY = canvas.height * 0.15;
+    let sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 80);
+    sunGrad.addColorStop(0, '#FFFDE8');
+    sunGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = sunGrad;
+    ctx.fillRect(sunX - 80, sunY - 80, 160, 160);
+    ctx.restore();
+  }
+
   // Rising water overlay
   for (const h of hazards) {
     if (h.type !== 'rising_water' || !h.active) continue;
@@ -11907,6 +12329,29 @@ function draw() {
       }
     }
     ctx.restore();
+  }
+
+  // --- Falling debris (canopy collapse) ---
+  for (const h of hazards) {
+    if (h.type !== 'falling_debris') continue;
+    if (!h.fallen || h.falling) {
+      let dx2 = h.x - camX;
+      let dy2 = h.y - camY;
+      if (h.falling && !h.fallen) {
+        dx2 += (Math.random() - 0.5) * h.shakeAmount * 2;
+      }
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(dx2, dy2, TILE * 0.8, TILE * 0.8);
+      ctx.fillStyle = '#4a3a2a';
+      ctx.fillRect(dx2 + 2, dy2 + 2, TILE * 0.6, TILE * 0.6);
+      // Warning shadow on ground before fall
+      if (h.falling && !h.fallen) {
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(dx2 - 2, h.targetY - camY, TILE, 4);
+        ctx.globalAlpha = 1;
+      }
+    }
   }
 
   // --- Bounce mushroom pads ---
