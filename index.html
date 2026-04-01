@@ -1591,9 +1591,11 @@ function generateLevel() {
 function generateTutorial() {
   let groundY = GROUND_Y;
   // Short flat level with signposts teaching each mechanic
-  // ~40 columns, no gaps, a few enemies, simple layout
-  let tutCols = 60;
+  // ~40 columns, no gaps (except jump pit), a few enemies, simple layout
+  let tutCols = 65;
+  let pitStart = 13, pitEnd = 16; // 3-tile gap to teach jumping
   for (let col = 0; col < tutCols; col++) {
+    if (col >= pitStart && col < pitEnd) continue; // Jump pit
     tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
     tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
   }
@@ -1602,8 +1604,13 @@ function generateTutorial() {
   decorations.push({ x: 3 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'WASD / Arrows', text2: 'to Move' });
   // Signpost 2: Jump
   decorations.push({ x: 10 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'SPACE to', text2: 'Jump' });
-  // A small log to jump over
-  tiles.push({ x: 13 * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'log', logStart: true, logEnd: true, logLen: 1 });
+  // Gems floating over the jump pit to guide the player across
+  for (let g = 0; g < 3; g++) {
+    collectibles.push({
+      x: (pitStart + g) * TILE + 10, y: (groundY - 2) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
   // Signpost 3: Attack
   decorations.push({ x: 18 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Z to Attack', text2: 'or Stomp!' });
   // A practice goblin
@@ -1643,8 +1650,19 @@ function generateTutorial() {
   }
   // Hearts
   collectibles.push({ x: 25 * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
-  // Signpost 8: Exit
-  decorations.push({ x: 52 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Reach the', text2: 'Portal!' });
+  // Signpost 8: Breakable walls hint
+  decorations.push({ x: 50 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Hit Cracked', text2: 'Walls! (Z)' });
+  // Breakable wall with hidden gems behind it
+  tiles.push({ x: 53 * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 2 });
+  // Secret gems behind the wall
+  for (let g = 0; g < 3; g++) {
+    collectibles.push({
+      x: (54 + g) * TILE + 4, y: (groundY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // Signpost 9: Exit
+  decorations.push({ x: 57 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Reach the', text2: 'Portal!' });
   // Exit portal
   exitPortal = { x: (tutCols - 5) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
   // A few trees and grass for visual
@@ -1966,6 +1984,125 @@ function generateLevel1() {
       maxCooldown: 120 + Math.floor(Math.random() * 60),
     });
   }
+
+  // --- THORN VINE GATES (timed open/close hazards) ---
+  // 3 gates spread across the level that block the path periodically
+  let vineGatePositions = [
+    Math.floor(COLS * 0.25),
+    Math.floor(COLS * 0.55),
+    Math.floor(COLS * 0.78),
+  ];
+  for (let vgCol of vineGatePositions) {
+    if (!hasGroundAt(vgCol * TILE + TILE / 2)) continue;
+    hazards.push({
+      type: 'thorn_vine_gate',
+      x: vgCol * TILE, y: (groundY - 3) * TILE,
+      w: TILE, h: TILE * 3,
+      openTimer: 0,
+      cycleLength: 180 + Math.floor(Math.random() * 60), // 3-4 sec cycle
+      openDuration: 90, // open for ~1.5 sec
+      phase: Math.floor(Math.random() * 120), // stagger timing
+      isOpen: false,
+    });
+  }
+
+  // --- VERTICAL CLIMB SECTION (around 65% of level) ---
+  let climbCol = Math.floor(COLS * 0.65);
+  // Stack of platforms going up then back down
+  let climbPlatforms = [
+    { col: climbCol, row: groundY - 2, len: 3 },
+    { col: climbCol + 4, row: groundY - 4, len: 3 },
+    { col: climbCol + 1, row: groundY - 6, len: 3 },  // top
+    { col: climbCol + 5, row: groundY - 4, len: 2 },  // down side
+    { col: climbCol + 8, row: groundY - 2, len: 2 },
+  ];
+  for (let p of climbPlatforms) {
+    for (let c = 0; c < p.len; c++) {
+      tiles.push({
+        x: (p.col + c) * TILE, y: p.row * TILE, w: TILE, h: TILE,
+        type: 'log', logStart: c === 0, logEnd: c === p.len - 1, logLen: p.len,
+      });
+    }
+  }
+  // Archer at the top
+  enemies.push({
+    x: (climbCol + 2) * TILE, y: (groundY - 7) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (climbCol + 2) * TILE, patrolRange: 0,
+    animFrame: 0, shootTimer: 80, windingUp: 0, aggro: false,
+    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
+  });
+  // Gems along the climb path
+  for (let p of climbPlatforms) {
+    collectibles.push({
+      x: (p.col + Math.floor(p.len / 2)) * TILE + 4, y: (p.row - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // Bonus heart at the very top
+  collectibles.push({
+    x: (climbCol + 2) * TILE, y: (groundY - 7) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
+  });
+
+  // --- WOLF SHADOW DASHES (parallax wolf silhouettes during howl) ---
+  // Stored as decorations, animated in draw when wolfHowlVignette > 0
+  for (let i = 0; i < 4; i++) {
+    decorations.push({
+      type: 'wolf_shadow',
+      x: Math.random() * LEVEL_W,
+      y: groundY * TILE - 20 - Math.random() * 30,
+      speed: 3 + Math.random() * 3,
+      direction: Math.random() < 0.5 ? 1 : -1,
+      phase: Math.random() * 300,
+      active: false,
+    });
+  }
+
+  // --- RISK/REWARD LOWER PATH (around 35% of level) ---
+  // A lower path through a tight underground corridor with more enemies but gems
+  let lowerPathStart = Math.floor(COLS * 0.33);
+  let lowerPathEnd = lowerPathStart + 12;
+  // Remove ground tiles in the lower path entrance (2-tile gap to drop down)
+  // Floor of lower path (3 tiles below normal ground)
+  let lowerFloorY = groundY + 3;
+  for (let col = lowerPathStart - 1; col <= lowerPathEnd + 1; col++) {
+    tiles.push({ x: col * TILE, y: lowerFloorY * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Ceiling of lower path (at normal ground level — already exists)
+  // Walls on sides
+  for (let row = groundY + 1; row < lowerFloorY; row++) {
+    tiles.push({ x: (lowerPathStart - 1) * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (lowerPathEnd + 1) * TILE, y: row * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Entry hole (remove 2 ground tiles at start)
+  tiles = tiles.filter(t => !(t.x >= lowerPathStart * TILE && t.x < (lowerPathStart + 2) * TILE && t.y === groundY * TILE && t.type === 'ground'));
+  // Exit ramp (log platforms going back up)
+  tiles.push({ x: (lowerPathEnd - 1) * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'log', logStart: true, logEnd: true, logLen: 1 });
+  tiles.push({ x: lowerPathEnd * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'log', logStart: true, logEnd: true, logLen: 1 });
+  // Goblins in lower path
+  enemies.push({
+    x: (lowerPathStart + 3) * TILE, y: (lowerFloorY - 1) * TILE, w: 24, h: 28,
+    vx: 0.5, vy: 0, type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0, patrolOrigin: (lowerPathStart + 3) * TILE, patrolRange: 3 * TILE, animFrame: 0,
+  });
+  enemies.push({
+    x: (lowerPathStart + 8) * TILE, y: (lowerFloorY - 1) * TILE, w: 24, h: 28,
+    vx: -0.5, vy: 0, type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (lowerPathStart + 8) * TILE, patrolRange: 3 * TILE, animFrame: 0,
+  });
+  // Gem cluster reward in lower path
+  for (let g = 0; g < 8; g++) {
+    collectibles.push({
+      x: (lowerPathStart + 2 + g) * TILE + 10, y: (lowerFloorY - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // Visual hint: sparkle at the entrance hole
+  decorations.push({
+    x: (lowerPathStart + 1) * TILE, y: groundY * TILE + 10,
+    type: 'sparkle', phase: 0,
+  });
 
   // Exit portal
   exitPortal = { x: (COLS - 6) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
@@ -2298,6 +2435,17 @@ function generateLevel2() {
         type: 'log', logStart: c === 0, logEnd: c === logLen - 1, logLen: logLen,
       });
     }
+    // Mark every 3rd-4th log as collapsing (shakes then falls after player stands on it)
+    let shouldCollapse = logPlatforms.length > 1 && logPlatforms.length % 3 === 0;
+    if (shouldCollapse) {
+      let recentLogs = tiles.filter(t => t.type === 'log' && t.y === logRow * TILE && t.x >= curCol * TILE && t.x < (curCol + logLen) * TILE);
+      for (let lt of recentLogs) {
+        lt.collapsing = true;
+        lt.collapseTimer = 0;
+        lt.collapsed = false;
+        lt.shakeTimer = 0;
+      }
+    }
     logPlatforms.push({ col: curCol, len: logLen, row: logRow });
     prevRow = logRow;
     let gap = 2 + Math.floor(Math.random() * 2); // 2 or 3 tile gap (always jumpable)
@@ -2382,6 +2530,15 @@ function generateLevel2() {
     invulnTimer: 0, // invulnerability after being hit
     stompCooldown: 0, // stomp attack timer
   });
+
+  // --- Bridge barricades (destructible crates the knight smashes through) ---
+  let barricadePositions = [bridgeStart + 3, bridgeStart + Math.floor((bridgeEnd - bridgeStart) * 0.7)];
+  for (let bCol of barricadePositions) {
+    tiles.push({
+      x: bCol * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
+      type: 'crate', hp: 2, maxHp: 2,
+    });
+  }
 
   // --- Second checkpoint before the bridge ---
   hazards.push({
@@ -2826,6 +2983,98 @@ function generateLevel3() {
       type: 'wind_gust', dir: gustDir, phase: Math.random() * Math.PI * 2, active: false, timer: 0,
     });
     decorations.push({ x: gustX + gustW / 2, y: (Math.min(bp.row, next.row)) * TILE, type: 'windMarker', dir: gustDir });
+  }
+
+  // --- Vertical bounce loop section (around 40% of level) ---
+  let bounceLoopIdx = Math.floor(branchPlatforms.length * 0.4);
+  let blPlat = branchPlatforms[bounceLoopIdx];
+  if (blPlat) {
+    let blCol = blPlat.col + blPlat.len + 2;
+    let blBaseRow = blPlat.row;
+    // Stack of leaf_bounce pads going UP (3 tiers above the base)
+    let bounceTiers = [
+      { col: blCol, row: blBaseRow - 3 },
+      { col: blCol + 2, row: blBaseRow - 6 },
+      { col: blCol, row: blBaseRow - 9 },
+      { col: blCol + 2, row: blBaseRow - 12 },  // top tier
+    ];
+    for (let bt of bounceTiers) {
+      for (let c = 0; c < 3; c++) {
+        tiles.push({
+          x: (bt.col + c) * TILE, y: bt.row * TILE, w: TILE, h: TILE / 2,
+          type: 'leaf_bounce', bounceAnim: 0,
+        });
+      }
+      // Gems at each tier
+      collectibles.push({
+        x: (bt.col + 1) * TILE + 4, y: (bt.row - 1) * TILE,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Top tier bonus: 3 gems + heart
+    let topTier = bounceTiers[bounceTiers.length - 1];
+    for (let g = 0; g < 3; g++) {
+      collectibles.push({
+        x: (topTier.col + g) * TILE + 4, y: (topTier.row - 2) * TILE,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    collectibles.push({
+      x: (topTier.col + 1) * TILE, y: (topTier.row - 3) * TILE,
+      w: 16, h: 16, type: 'heart', alive: true,
+    });
+    // Decoration marker
+    decorations.push({ x: (blCol + 1) * TILE, y: blBaseRow * TILE - 16, type: 'bounceLoopSign' });
+  }
+
+  // --- Cracking branch sprint platform (around 60% of level) ---
+  let crackIdx = Math.floor(branchPlatforms.length * 0.6);
+  let crackPlat = branchPlatforms[crackIdx];
+  if (crackPlat) {
+    let crackCol = crackPlat.col + crackPlat.len + 2;
+    let crackRow = crackPlat.row;
+    let crackLen = 12; // long branch that cracks
+    for (let c = 0; c < crackLen; c++) {
+      tiles.push({
+        x: (crackCol + c) * TILE, y: crackRow * TILE, w: TILE, h: TILE,
+        type: 'branch', branchStart: c === 0, branchEnd: c === crackLen - 1,
+        cracking: true, crackDelay: c * 12, // each tile cracks sequentially
+        crackTimer: 0, crackTriggered: false, crackFallen: false,
+      });
+    }
+    // Landing platform on the other side
+    for (let c = 0; c < 4; c++) {
+      tiles.push({
+        x: (crackCol + crackLen + 2 + c) * TILE, y: crackRow * TILE, w: TILE, h: TILE,
+        type: 'branch', branchStart: c === 0, branchEnd: c === 3,
+      });
+    }
+    // Gems along the cracking branch to encourage sprinting
+    for (let c = 0; c < crackLen; c += 2) {
+      collectibles.push({
+        x: (crackCol + c) * TILE + 10, y: (crackRow - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // Signpost warning
+    decorations.push({ x: (crackCol - 1) * TILE, y: (crackRow - 1) * TILE, type: 'sign', text: 'RUN!' });
+  }
+
+  // --- Butterfly swarms (near enemies, can stun them) ---
+  for (let i = 6; i < branchPlatforms.length; i += 7) {
+    let bp = branchPlatforms[i];
+    if (bp.isLeaf) continue;
+    decorations.push({
+      x: (bp.col + Math.floor(bp.len / 2)) * TILE,
+      y: (bp.row - 2) * TILE,
+      type: 'butterfly_swarm',
+      scattered: false, scatterTimer: 0,
+      butterflies: Array.from({length: 6}, (_, bi) => ({
+        ox: Math.random() * TILE * 2 - TILE, oy: Math.random() * TILE - TILE / 2,
+        phase: Math.random() * Math.PI * 2, speed: 0.03 + Math.random() * 0.02,
+        color: ['#dd88cc', '#88bbee', '#eebb55', '#99ddaa'][bi % 4],
+      })),
+    });
   }
 
   // --- Exit: final platform reachable from last branch ---
@@ -5160,9 +5409,9 @@ function update() {
       }
     }
     
-    // Cracked wall damage
+    // Cracked wall and crate damage
     for (const t of tiles) {
-      if (t.type !== 'cracked_wall' || !t.hp) continue;
+      if ((t.type !== 'cracked_wall' && t.type !== 'crate') || !t.hp) continue;
       if (rectOverlap(attackBox, t)) {
         t.hp--;
         shakeTimer = 3;
@@ -5539,6 +5788,13 @@ function update() {
     if (!e.alive) continue;
     e.animFrame++;
 
+    // Butterfly stun — skip all AI while stunned
+    if (e.stunTimer > 0) {
+      e.stunTimer--;
+      e.vx = 0;
+      continue;
+    }
+
     if (e.hurtTimer > 0) {
       e.hurtTimer--;
     } else if (e.type === 'archer') {
@@ -5699,6 +5955,16 @@ function update() {
       } else if (e.phase === 'charge') {
         // Charging — fast movement
         e.vx = e.facing * 4.5;
+        // Smash through crates during charge
+        for (let ti = tiles.length - 1; ti >= 0; ti--) {
+          let t = tiles[ti];
+          if (t.type === 'crate' && rectOverlap(e, t)) {
+            tiles.splice(ti, 1);
+            spawnParticles(t.x + TILE / 2, t.y + TILE / 2, '#8B6914', 15, 6);
+            shakeTimer = 8;
+            playSound('destroy');
+          }
+        }
         if (e.phaseTimer <= 0) {
           e.phase = 'recover';
           e.phaseTimer = 50;
@@ -6801,6 +7067,70 @@ function update() {
     }
   }
 
+  // --- Cracking branch sprint platforms ---
+  let crackTriggeredAny = false;
+  for (const t of tiles) {
+    if (!t.cracking) continue;
+    if (t.crackFallen) continue;
+    // Check if player is standing on ANY cracking tile to trigger the chain
+    if (!t.crackTriggered && player.grounded && player.x + player.w > t.x && player.x < t.x + t.w &&
+        Math.abs((player.y + player.h) - t.y) < 4) {
+      // Trigger ALL cracking tiles in this set
+      crackTriggeredAny = true;
+    }
+  }
+  if (crackTriggeredAny) {
+    for (const t of tiles) {
+      if (t.cracking && !t.crackTriggered && !t.crackFallen) {
+        t.crackTriggered = true;
+      }
+    }
+  }
+  for (const t of tiles) {
+    if (!t.cracking || !t.crackTriggered || t.crackFallen) continue;
+    t.crackTimer++;
+    if (t.crackTimer >= t.crackDelay) {
+      let elapsed = t.crackTimer - t.crackDelay;
+      t.shakeTimer = elapsed; // visual shake
+      if (elapsed > 30) {
+        t.crackFallen = true;
+        t.collapsed = true; // reuse collapsed flag to skip collision
+        spawnParticles(t.x + TILE/2, t.y + TILE/2, '#5a3a1a', 5, 3);
+        playSound('hit');
+      }
+    }
+  }
+
+  // --- Butterfly swarm interaction ---
+  for (const d of decorations) {
+    if (d.type !== 'butterfly_swarm') continue;
+    if (d.scattered) {
+      d.scatterTimer++;
+      if (d.scatterTimer > 180) { d.scattered = false; d.scatterTimer = 0; } // reform after 3s
+      // Check if scattered butterflies are near an enemy → stun it
+      if (d.scatterTimer < 60) {
+        for (const en of enemies) {
+          if (!en.alive || en.stunTimer > 0) continue;
+          let edx = Math.abs((en.x + en.w/2) - d.x);
+          let edy = Math.abs((en.y + en.h/2) - d.y);
+          if (edx < TILE * 3 && edy < TILE * 3) {
+            en.stunTimer = 90; // stunned for 1.5 seconds
+            en.vx = 0;
+            spawnParticles(en.x + en.w/2, en.y, '#dd88cc', 8, 2);
+          }
+        }
+      }
+    } else {
+      // Player walks through swarm to scatter it
+      let pdx = Math.abs((player.x + player.w/2) - d.x);
+      let pdy = Math.abs((player.y + player.h/2) - d.y);
+      if (pdx < TILE * 1.5 && pdy < TILE * 1.5) {
+        d.scattered = true;
+        d.scatterTimer = 0;
+      }
+    }
+  }
+
   // --- Spider ambush processing ---
   for (const h of hazards) {
     if (h.type !== 'spider') continue;
@@ -7050,6 +7380,25 @@ function update() {
     }
   }
 
+  // --- Thorn vine gates ---
+  for (const h of hazards) {
+    if (h.type !== 'thorn_vine_gate') continue;
+    h.phase++;
+    let cyclePos = h.phase % h.cycleLength;
+    h.isOpen = cyclePos < h.openDuration;
+    // Damage player if gate is closed and overlapping
+    if (!h.isOpen && rectOverlap(player, h) && player.invincible <= 0 && !player.dodging) {
+      player.hp--;
+      damageTaken = true;
+      player.invincible = 45;
+      player.vx = -player.facing * 5;
+      player.vy = -4;
+      shakeTimer = 6;
+      playSound('hurt');
+      spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#44aa22', 8, 4);
+    }
+  }
+
   // --- Current zones ---
   for (const h of hazards) {
     if (h.type !== 'current_zone') continue;
@@ -7229,6 +7578,7 @@ function drawTorch(ctx, tx, ty) {
 }
 
 function drawTile(t) {
+  if (t.collapsed) return; // skip fallen/collapsed tiles
   let sx = t.x - camera.x, sy = t.y;
   if (sx < -TILE || sx > BASE_W + TILE) return;
 
@@ -7390,6 +7740,35 @@ function drawTile(t) {
       ctx.arc(cx, cy, 1.5, 0, Math.PI * 2);
       ctx.fill();
     }
+  } else if (t.type === 'crate') {
+    // Destructible wooden crate
+    ctx.fillStyle = '#8B6914';
+    ctx.fillRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+    ctx.strokeStyle = '#5C4410';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(sx + 1, sy + 1, TILE - 2, TILE - 2);
+    // Cross planks
+    ctx.strokeStyle = '#6B5212';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx + 2, sy + 2); ctx.lineTo(sx + TILE - 2, sy + TILE - 2);
+    ctx.moveTo(sx + TILE - 2, sy + 2); ctx.lineTo(sx + 2, sy + TILE - 2);
+    ctx.stroke();
+    // Damage cracks
+    if (t.hp < t.maxHp) {
+      ctx.strokeStyle = '#3a2a08';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx + TILE/2, sy + 4); ctx.lineTo(sx + TILE/2 + 5, sy + TILE/2);
+      ctx.moveTo(sx + 8, sy + TILE/2); ctx.lineTo(sx + 4, sy + TILE - 4);
+      ctx.stroke();
+    }
+    // Nails
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(sx + 4, sy + 4, 2, 2);
+    ctx.fillRect(sx + TILE - 6, sy + 4, 2, 2);
+    ctx.fillRect(sx + 4, sy + TILE - 6, 2, 2);
+    ctx.fillRect(sx + TILE - 6, sy + TILE - 6, 2, 2);
   } else if (t.type === 'bridge_plank') {
     // Wooden bridge plank over water gap
     // Main plank body
@@ -7474,6 +7853,40 @@ function drawTile(t) {
       ctx.beginPath();
       ctx.ellipse(sx + TILE + 8, sy + TILE / 2 + 2, 4, 3, 0.4, 0, Math.PI * 2);
       ctx.fill();
+    }
+    // Cracking branch overlay
+    if (t.cracking && t.crackTriggered && !t.crackFallen) {
+      let elapsed = (t.crackTimer || 0) - (t.crackDelay || 0);
+      if (elapsed > 0) {
+        let progress = Math.min(elapsed / 30, 1);
+        // Shake
+        if (progress > 0.3) {
+          let shakeAmt = progress * 2;
+          ctx.save();
+          ctx.translate(Math.sin(frameCount * 0.8) * shakeAmt, 0);
+        }
+        // Crack lines
+        ctx.strokeStyle = '#1a0a00';
+        ctx.lineWidth = 1;
+        ctx.globalAlpha = progress;
+        ctx.beginPath();
+        ctx.moveTo(sx + TILE * 0.3, sy + 4);
+        ctx.lineTo(sx + TILE * 0.5, sy + TILE * 0.6);
+        ctx.lineTo(sx + TILE * 0.7, sy + TILE);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(sx + TILE * 0.6, sy + 4);
+        ctx.lineTo(sx + TILE * 0.4, sy + TILE * 0.5);
+        ctx.stroke();
+        // Red tint as it's about to fall
+        if (progress > 0.5) {
+          ctx.fillStyle = '#ff2200';
+          ctx.globalAlpha = (progress - 0.5) * 0.3;
+          ctx.fillRect(sx, sy + 4, TILE, TILE - 10);
+        }
+        ctx.globalAlpha = 1;
+        if (progress > 0.3) ctx.restore();
+      }
     }
   } else if (t.type === 'root_platform') {
     // Twisted root platform — dark wood with purple moss
@@ -8895,6 +9308,74 @@ function drawDecorations() {
         ctx.stroke();
       }
       ctx.restore();
+    } else if (d.type === 'butterfly_swarm') {
+      // Butterfly swarm — cluster of colorful butterflies
+      ctx.save();
+      if (d.scattered) {
+        // Scattered: butterflies fly outward
+        let progress = d.scatterTimer / 180;
+        ctx.globalAlpha = 1 - progress * 0.7;
+        for (let bf of d.butterflies) {
+          let bfx = sx + bf.ox * (1 + progress * 4) + Math.sin(frameCount * bf.speed * 3 + bf.phase) * 20;
+          let bfy = d.y + bf.oy * (1 + progress * 3) + Math.cos(frameCount * bf.speed * 2 + bf.phase) * 15;
+          ctx.fillStyle = bf.color;
+          // Wing pair
+          let wingFlap = Math.sin(frameCount * 0.3 + bf.phase) * 0.4;
+          ctx.save();
+          ctx.translate(bfx, bfy);
+          ctx.rotate(wingFlap);
+          ctx.beginPath();
+          ctx.ellipse(-3, 0, 4, 2.5, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(3, 0, 4, 2.5, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          // Body
+          ctx.fillStyle = '#333';
+          ctx.fillRect(-0.5, -2, 1, 4);
+          ctx.restore();
+        }
+      } else {
+        // Idle: butterflies hover in a cluster
+        ctx.globalAlpha = 0.9;
+        for (let bf of d.butterflies) {
+          let bfx = sx + bf.ox + Math.sin(frameCount * bf.speed + bf.phase) * 8;
+          let bfy = d.y + bf.oy + Math.cos(frameCount * bf.speed * 0.7 + bf.phase) * 6;
+          ctx.fillStyle = bf.color;
+          let wingFlap = Math.sin(frameCount * 0.2 + bf.phase) * 0.5;
+          ctx.save();
+          ctx.translate(bfx, bfy);
+          ctx.rotate(wingFlap * 0.3);
+          ctx.beginPath();
+          ctx.ellipse(-3, 0, 3.5, 2, -0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(3, 0, 3.5, 2, 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#333';
+          ctx.fillRect(-0.5, -1.5, 1, 3);
+          ctx.restore();
+        }
+      }
+      ctx.restore();
+    } else if (d.type === 'bounceLoopSign') {
+      // Arrow pointing up to indicate bounce section
+      ctx.save();
+      ctx.globalAlpha = 0.5 + Math.sin(frameCount * 0.06) * 0.2;
+      ctx.fillStyle = '#88ff44';
+      let ay = d.y + Math.sin(frameCount * 0.08) * 4;
+      // Big up arrow
+      ctx.beginPath();
+      ctx.moveTo(sx, ay - 12);
+      ctx.lineTo(sx - 8, ay);
+      ctx.lineTo(sx - 3, ay);
+      ctx.lineTo(sx - 3, ay + 8);
+      ctx.lineTo(sx + 3, ay + 8);
+      ctx.lineTo(sx + 3, ay);
+      ctx.lineTo(sx + 8, ay);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
     } else if (d.type === 'bounceLeaf') {
       // Visual indicator above leaf bounce pad (subtle up arrow)
       ctx.save();
@@ -9506,6 +9987,47 @@ function drawLevelAmbientEffects() {
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, BASE_W, BASE_H);
       ctx.restore();
+
+      // Wolf shadow dashes across background during vignette
+      for (const d of decorations) {
+        if (d.type !== 'wolf_shadow') continue;
+        // Activate during howl
+        if (!d.active) { d.active = true; d.dashX = -60; }
+        d.dashX += d.speed * d.direction;
+        if (d.dashX > BASE_W + 60 || d.dashX < -60) {
+          d.dashX = d.direction > 0 ? -60 : BASE_W + 60;
+          d.active = false;
+        }
+        if (!d.active) continue;
+        let wy = d.y - camera.y * 0.3; // parallax
+        ctx.save();
+        ctx.globalAlpha = wolfHowlVignette * 1.5;
+        ctx.fillStyle = '#111111';
+        ctx.translate(d.dashX, wy);
+        if (d.direction < 0) ctx.scale(-1, 1);
+        // Wolf body silhouette
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Head
+        ctx.beginPath();
+        ctx.ellipse(16, -6, 8, 7, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        // Ears
+        ctx.beginPath();
+        ctx.moveTo(20, -12); ctx.lineTo(23, -20); ctx.lineTo(26, -12);
+        ctx.fill();
+        // Legs (running pose)
+        let legPhase = frameCount * 0.2;
+        ctx.fillRect(-10 + Math.sin(legPhase) * 4, 8, 3, 10);
+        ctx.fillRect(6 + Math.sin(legPhase + Math.PI) * 4, 8, 3, 10);
+        // Tail
+        ctx.beginPath();
+        ctx.moveTo(-18, -2);
+        ctx.quadraticCurveTo(-28, -12 + Math.sin(frameCount * 0.15) * 4, -22, -6);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -9845,25 +10367,68 @@ function draw() {
     ctx.restore();
   }
 
-  // Wind gust hazard visuals
+  // Wind gust hazard visuals (with leaf telegraph)
   for (const h of hazards) {
-    if (h.type === 'wind_gust' && h.active) {
+    if (h.type === 'wind_gust') {
       let hx = h.x - camera.x;
       if (hx > BASE_W + 50 || hx + h.w < -50) continue;
-      ctx.save();
-      ctx.globalAlpha = 0.08 + Math.sin(frameCount * 0.05) * 0.03;
-      // Wind streaks
-      ctx.strokeStyle = '#bbddaa';
-      ctx.lineWidth = 1;
-      for (let s = 0; s < 5; s++) {
-        let sy2 = h.y + s * (h.h / 5) + Math.sin(frameCount * 0.08 + s * 1.5) * 8;
-        let sx2 = hx + ((frameCount * 3 + s * 30) % h.w);
-        ctx.beginPath();
-        ctx.moveTo(sx2, sy2);
-        ctx.lineTo(sx2 + h.dir * 20, sy2 - 2);
-        ctx.stroke();
+      // Leaf telegraph: show swirling leaves before gust activates
+      let sinVal = Math.sin((h.timer || 0) * 0.03 + (h.phase || 0));
+      let aboutToActivate = sinVal > -0.1 && sinVal <= 0.2; // just before threshold
+      if (aboutToActivate && !h.active) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        for (let lf = 0; lf < 4; lf++) {
+          let lfx = hx + (h.w * 0.2) + ((frameCount * 1.5 + lf * 40) % (h.w * 0.6));
+          let lfy = h.y + h.h * 0.3 + Math.sin(frameCount * 0.1 + lf * 2) * 15;
+          let rot = frameCount * 0.15 + lf * 1.5;
+          ctx.save();
+          ctx.translate(lfx, lfy);
+          ctx.rotate(rot);
+          ctx.fillStyle = lf % 2 === 0 ? '#8ab060' : '#a0c070';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 5, 2.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
       }
-      ctx.restore();
+      if (h.active) {
+        ctx.save();
+        // Main wind field - more visible tinted area
+        ctx.globalAlpha = 0.06;
+        ctx.fillStyle = '#aaddaa';
+        ctx.fillRect(hx, h.y, h.w, h.h);
+        // Wind streaks - more numerous and visible
+        ctx.globalAlpha = 0.15 + Math.sin(frameCount * 0.05) * 0.05;
+        ctx.strokeStyle = '#bbddaa';
+        ctx.lineWidth = 1.5;
+        for (let s = 0; s < 8; s++) {
+          let sy2 = h.y + s * (h.h / 8) + Math.sin(frameCount * 0.08 + s * 1.5) * 8;
+          let sx2 = hx + ((frameCount * 3 + s * 30) % h.w);
+          let streakLen = 15 + Math.random() * 15;
+          ctx.beginPath();
+          ctx.moveTo(sx2, sy2);
+          ctx.lineTo(sx2 + h.dir * streakLen, sy2 - 2 + Math.sin(frameCount * 0.12 + s) * 3);
+          ctx.stroke();
+        }
+        // Blowing leaves during gust
+        ctx.globalAlpha = 0.5;
+        for (let lf = 0; lf < 3; lf++) {
+          let lfx = hx + ((frameCount * 4 * Math.abs(h.dir) + lf * 70) % h.w);
+          let lfy = h.y + h.h * 0.2 + Math.sin(frameCount * 0.15 + lf * 2.5) * (h.h * 0.3);
+          let rot = frameCount * 0.2 + lf * 2;
+          ctx.save();
+          ctx.translate(lfx, lfy);
+          ctx.rotate(rot);
+          ctx.fillStyle = '#7aa050';
+          ctx.beginPath();
+          ctx.ellipse(0, 0, 4, 2, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+        ctx.restore();
+      }
     }
   }
 
@@ -10481,25 +11046,105 @@ function draw() {
     ctx.restore();
   }
 
-  // Current zones
+  // Thorn vine gates
+  for (const h of hazards) {
+    if (h.type !== 'thorn_vine_gate') continue;
+    let vx = h.x - camera.x;
+    if (vx < -50 || vx > BASE_W + 50) continue;
+    ctx.save();
+    if (h.isOpen) {
+      // Retracted: thin vines pulled to sides
+      ctx.globalAlpha = 0.4;
+      ctx.strokeStyle = '#2a6622';
+      ctx.lineWidth = 2;
+      // Left retracted vine
+      ctx.beginPath();
+      ctx.moveTo(vx + 2, h.y);
+      ctx.quadraticCurveTo(vx - 4, h.y + h.h * 0.5, vx + 2, h.y + h.h);
+      ctx.stroke();
+      // Right retracted vine
+      ctx.beginPath();
+      ctx.moveTo(vx + TILE - 2, h.y);
+      ctx.quadraticCurveTo(vx + TILE + 4, h.y + h.h * 0.5, vx + TILE - 2, h.y + h.h);
+      ctx.stroke();
+    } else {
+      // Extended: thick thorny vines blocking path
+      let wobble = Math.sin(frameCount * 0.1) * 2;
+      // Multiple vine strands
+      for (let s = 0; s < 4; s++) {
+        let sx = vx + 4 + s * 6 + Math.sin(s + frameCount * 0.05) * 2;
+        ctx.strokeStyle = s % 2 === 0 ? '#2a7722' : '#1a5518';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(sx, h.y);
+        ctx.quadraticCurveTo(sx + wobble, h.y + h.h * 0.5, sx - wobble, h.y + h.h);
+        ctx.stroke();
+        // Thorns
+        ctx.fillStyle = '#884422';
+        ctx.globalAlpha = 0.7;
+        for (let t = 0; t < 3; t++) {
+          let ty = h.y + (t + 1) * h.h / 4;
+          ctx.beginPath();
+          ctx.moveTo(sx, ty);
+          ctx.lineTo(sx + 4, ty - 3);
+          ctx.lineTo(sx + 4, ty + 3);
+          ctx.fill();
+        }
+      }
+      // Warning glow when about to open
+      let cyclePos = h.phase % h.cycleLength;
+      let timeToOpen = h.cycleLength - cyclePos;
+      if (timeToOpen < 30) {
+        ctx.globalAlpha = (30 - timeToOpen) / 30 * 0.3;
+        ctx.fillStyle = '#44ff44';
+        ctx.fillRect(vx, h.y, TILE, h.h);
+      }
+    }
+    ctx.restore();
+  }
+
+  // Current zones with particle drift
   for (const h of hazards) {
     if (h.type !== 'current_zone') continue;
     let cx = h.x - camera.x;
     if (cx < -100 || cx > BASE_W + 100) continue;
     ctx.save();
-    ctx.globalAlpha = 0.25;
+    ctx.globalAlpha = 0.2;
     ctx.fillStyle = '#4488cc';
     ctx.fillRect(cx, h.y, h.w, h.h);
     // Flow arrows
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = 0.35;
     ctx.fillStyle = '#88ccff';
-    for (let a = 0; a < h.w; a += 20) {
+    for (let a = 0; a < h.w; a += 24) {
       let arrowX = cx + ((a + frameCount * h.dir * 2) % h.w);
       if (arrowX < cx || arrowX > cx + h.w - 10) continue;
       ctx.beginPath();
       ctx.moveTo(arrowX, h.y + h.h/2);
       ctx.lineTo(arrowX + h.dir * 8, h.y + h.h/2 - 4);
       ctx.lineTo(arrowX + h.dir * 8, h.y + h.h/2 + 4);
+      ctx.fill();
+    }
+    // Drifting water particles (small blue dots flowing in current direction)
+    ctx.fillStyle = '#aaddff';
+    for (let p = 0; p < 8; p++) {
+      let px = cx + ((p * (h.w / 8) + frameCount * h.dir * 1.5) % h.w);
+      if (px < cx || px > cx + h.w) continue;
+      let py = h.y + (h.h * 0.2) + Math.sin(frameCount * 0.08 + p * 1.7) * (h.h * 0.3);
+      ctx.globalAlpha = 0.4 + Math.sin(frameCount * 0.06 + p) * 0.2;
+      ctx.beginPath();
+      ctx.arc(px, py, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Foam/bubble trail
+    ctx.fillStyle = '#ffffff';
+    for (let b = 0; b < 4; b++) {
+      let bx = cx + ((b * (h.w / 4) + frameCount * h.dir * 2.5 + b * 17) % h.w);
+      if (bx < cx || bx > cx + h.w) continue;
+      let by = h.y + h.h * 0.5 + Math.sin(frameCount * 0.12 + b * 2.3) * (h.h * 0.2);
+      ctx.globalAlpha = 0.25 + Math.sin(frameCount * 0.1 + b) * 0.15;
+      ctx.beginPath();
+      ctx.arc(bx, by, 1, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.restore();
@@ -10635,6 +11280,23 @@ function draw() {
       continue;
     } else if (e.hurtTimer > 0 && e.hurtTimer % 4 < 2) {
       ctx.globalAlpha = 0.5;
+    }
+
+    // Butterfly stun visual — spinning stars above head
+    if (e.stunTimer > 0) {
+      ctx.save();
+      ctx.globalAlpha = 0.8;
+      for (let s = 0; s < 3; s++) {
+        let starAngle = frameCount * 0.1 + s * (Math.PI * 2 / 3);
+        let starX = sx + e.w / 2 + Math.cos(starAngle) * 10;
+        let starY = e.y - 8 + Math.sin(starAngle * 0.5) * 3;
+        ctx.fillStyle = s === 0 ? '#ffee44' : s === 1 ? '#dd88cc' : '#88bbee';
+        ctx.beginPath();
+        ctx.arc(starX, starY, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+      ctx.globalAlpha = 0.6; // dimmed when stunned
     }
 
     // Telegraph visual effects
