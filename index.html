@@ -1572,45 +1572,9 @@ function generateLevel2() {
     active: false,
   });
 
-  // --- Barrel ride — auto-scrolling section through rapids ---
-  let barrelStartCol = waterStart + Math.floor((waterEnd - waterStart) * 0.4);
-  let barrelEndCol = barrelStartCol + 20;
-  hazards.push({
-    type: 'barrel_ride',
-    x: barrelStartCol * TILE,
-    y: (groundY - 1) * TILE,
-    w: TILE * 2, h: TILE,
-    startX: barrelStartCol * TILE,
-    endX: barrelEndCol * TILE,
-    speed: 3,
-    active: false,
-    playerInBarrel: false,
-  });
-  for (let r = 0; r < 6; r++) {
-    let rockCol = barrelStartCol + 3 + r * 3 + Math.floor(Math.random() * 2);
-    let rockRow = groundY - 1 + (Math.random() < 0.5 ? 0 : -1);
-    hazards.push({
-      type: 'barrel_rock',
-      x: rockCol * TILE, y: rockRow * TILE,
-      w: TILE, h: TILE,
-    });
-  }
+  // (barrel ride removed)
 
-  // --- Water wheel platforms — rotating platforms ---
-  let wheelSpacing = Math.floor((waterEnd - waterStart) / 5);
-  for (let i = 0; i < 4; i++) {
-    let wheelCol = waterStart + wheelSpacing * (i + 1);
-    let wheelCenterY = (groundY - 2) * TILE;
-    hazards.push({
-      type: 'water_wheel',
-      x: wheelCol * TILE,
-      y: wheelCenterY,
-      radius: TILE * 2,
-      angle: i * Math.PI / 2,
-      speed: 0.015,
-      paddles: 4,
-    });
-  }
+  // (water wheel removed)
 
   // --- Current zones — water flow that pushes player ---
   let currentSpacing = Math.floor((waterEnd - waterStart) / 6);
@@ -2226,11 +2190,11 @@ function generateLevel4() {
       x: fx, y: (nearRow - 2) * TILE - Math.random() * 60,
       type: 'firefly', phase: Math.random() * Math.PI * 2,
     });
+  }
+
   // Cracked walls with secret rooms (Level 4)
   tiles.push({ x: 60 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
   tiles.push({ x: 120 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
-
-  }
 }
 
 // ---- PLAYER ----
@@ -3057,17 +3021,19 @@ function update() {
   // --- Damage flash decay ---
   if (damageFlash > 0) damageFlash -= 0.05;
 
-  // Drowning — player hits water level
-  let waterY = GROUND_Y * TILE + TILE; // water surface is at bottom of ground level
-  if (player.y + player.h > waterY + 10 && player.grounded === false) {
-    // Slow the player down in water
-    if (player.y + player.h > waterY + 30) {
-      player.hp = 0; // drown
-      spawnParticles(player.x + player.w / 2, waterY, '#4488cc', 12, 4);
+  // Drowning — player hits water level (Level 2 only)
+  if (currentLevel === 2) {
+    let waterY = GROUND_Y * TILE + TILE;
+    if (player.y + player.h > waterY + 10 && player.grounded === false) {
+      if (player.y + player.h > waterY + 30) {
+        player.hp = 0;
+        spawnParticles(player.x + player.w / 2, waterY, '#4488cc', 12, 4);
+      }
     }
   }
   // Failsafe for falling way off
-  if (player.y > BASE_H + 200) {
+  let fallLimit = currentLevel === 4 ? (GROUND_Y + 50) * TILE : BASE_H + 200;
+  if (player.y > fallLimit) {
     player.hp = 0;
   }
 
@@ -3078,7 +3044,11 @@ function update() {
   camera.x += (targetCamX - camera.x) * 0.06;
   camera.y += (targetCamY - camera.y) * 0.06;
   camera.x = Math.max(0, Math.min(LEVEL_W - BASE_W, camera.x));
-  camera.y = Math.max(-(ROWS * TILE * 4), Math.min(0, camera.y));
+  let maxCamDown = 0;
+  if (currentLevel === 4) {
+    maxCamDown = 45 * TILE; // allow camera to follow player deep underground
+  }
+  camera.y = Math.max(-(ROWS * TILE * 4), Math.min(maxCamDown, camera.y));
 
   // Dynamic zoom
   let bossNear = false;
