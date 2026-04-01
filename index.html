@@ -1749,7 +1749,7 @@ function generateLevel1() {
   // These sit ON the ground and the player walks over them for environmental variety
   let logSpacing = LEVEL_W / 15; // ~15 logs across the level
   for (let i = 0; i < 15; i++) {
-    let startCol = 15 + i * Math.floor(logSpacing / TILE) + Math.floor(Math.random() * 8);
+    let startCol = 40 + i * Math.floor(logSpacing / TILE) + Math.floor(Math.random() * 8);
     if (startCol >= COLS - 12) continue;
     let logLen = 4 + Math.floor(Math.random() * 5); // 4-8 tiles long
     if (startCol + logLen + 2 >= COLS - 12) continue;
