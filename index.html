@@ -1994,26 +1994,7 @@ function generateLevel1() {
     });
   }
 
-  // --- THORN VINE GATES (timed open/close hazards) ---
-  // 3 gates spread across the level that block the path periodically
-  let vineGatePositions = [
-    Math.floor(COLS * 0.25),
-    Math.floor(COLS * 0.55),
-    Math.floor(COLS * 0.78),
-  ];
-  for (let vgCol of vineGatePositions) {
-    if (!hasGroundAt(vgCol * TILE + TILE / 2)) continue;
-    hazards.push({
-      type: 'thorn_vine_gate',
-      x: vgCol * TILE, y: (groundY - 3) * TILE,
-      w: TILE, h: TILE * 3,
-      openTimer: 0,
-      cycleLength: 180 + Math.floor(Math.random() * 60), // 3-4 sec cycle
-      openDuration: 90, // open for ~1.5 sec
-      phase: Math.floor(Math.random() * 120), // stagger timing
-      isOpen: false,
-    });
-  }
+  // (Thorn vine gates removed from Level 1 — too punishing for first level)
 
   // --- VERTICAL CLIMB SECTION (around 65% of level) ---
   let climbCol = Math.floor(COLS * 0.65);
