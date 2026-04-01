@@ -369,6 +369,33 @@ const MAX_LEVEL = 4;
 let projectiles = []; // { x, y, vx, vy, w, h, type, life }
 let levelTimer = 0; // frame counter for level completion time
 let damageTaken = false; // tracks if player took any damage this level
+
+// --- Save System (realmOfTheFallen_save) ---
+function saveProgress() {
+  try {
+    let saveData = {
+      highestLevel: currentLevel,
+      totalGems: player.gems || 0,
+      xp: player.xp || 0,
+      level: player.level || 1,
+      stats: player.stats || { maxHp: 0, attack: 0, speed: 0 },
+      shopPurchases: typeof shopPurchases !== 'undefined' ? shopPurchases : [],
+    };
+    localStorage.setItem('realmOfTheFallen_save', JSON.stringify(saveData));
+  } catch(e) { /* localStorage unavailable */ }
+}
+
+function loadProgress() {
+  try {
+    let raw = localStorage.getItem('realmOfTheFallen_save');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+function clearSave() {
+  try { localStorage.removeItem('realmOfTheFallen_save'); } catch(e) {}
+}
 let crackWallHits = {}; // track hits on cracked walls {tileIndex: hitCount}
 // (waterfallZone removed — Level 2 uses normal water rendering)
 
@@ -1070,6 +1097,29 @@ function generateLevel1() {
     activated: false,
   };
 
+  // --- Corrupted tree hazards — branches swing across the path ---
+  let corruptedTreeSpacing = LEVEL_W / 12;
+  for (let i = 0; i < 10; i++) {
+    let ctx = 400 + i * corruptedTreeSpacing + Math.random() * 200;
+    if (ctx >= LEVEL_W - 400) break;
+    let ctCol = Math.floor(ctx / TILE);
+    if (!hasGroundAt(ctCol * TILE + TILE / 2)) continue;
+    // Don't place near rest zone
+    if (ctx > restZoneStart - 100 && ctx < restZoneEnd + 100) continue;
+    hazards.push({
+      type: 'corrupted_tree',
+      x: ctCol * TILE, y: (groundY - 3) * TILE,
+      w: TILE * 3, h: TILE * 2,
+      swingAngle: 0,
+      swingSpeed: 0.03 + Math.random() * 0.02,
+      swingPhase: Math.random() * Math.PI * 2,
+      windupTimer: 0,
+      attacking: false,
+      cooldown: 0,
+      maxCooldown: 120 + Math.floor(Math.random() * 60),
+    });
+  }
+
   // Exit portal
   exitPortal = { x: (COLS - 6) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
 
@@ -1348,11 +1398,11 @@ function generateLevel1() {
       type: 'waterRipple',
       phase: Math.random() * Math.PI * 2,
     });
+  }
+
   // Cracked walls with secret rooms (Level 1)
   tiles.push({ x: 80 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
   tiles.push({ x: 200 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
-
-  }
 }
 
 function generateLevel2() {
@@ -1481,9 +1531,10 @@ function generateLevel2() {
   }
 
   // --- GIANT TOAD MINI-BOSS in water zone ---
-  let toadX = (waterStart + Math.floor((waterEnd - waterStart) * 0.5)) * TILE;
+  let toadPlat = logPlatforms[Math.floor(logPlatforms.length / 2)];
+  let toadX = (toadPlat.col + 1) * TILE;
   enemies.push({
-    x: toadX, y: (groundY - 1) * TILE, w: 48, h: 48,
+    x: toadX, y: (toadPlat.row - 2) * TILE, w: 48, h: 48,
     vx: 0, vy: 0,
     type: 'toad_boss', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
     facing: 1, attackCooldown: 0,
@@ -1493,18 +1544,54 @@ function generateLevel2() {
     telegraphTimer: 0, // telegraph for tongue attack
   });
 
-  // --- GOBLIN KNIGHT MINIBOSS on the boss bridge ---
-  let knightX = (bossStart + 5) * TILE;
+  // --- GOBLIN KNIGHT MINIBOSS hidden behind a large waterfall ---
+  // Build a wide boss arena behind the waterfall near the end of the water zone
+  let knightWfCol = waterEnd - 15;
+  let knightWfRow = groundY - 1;
+  // Boss arena floor (8 tiles wide)
+  for (let c = 0; c < 8; c++) {
+    tiles.push({
+      x: (knightWfCol + c) * TILE, y: knightWfRow * TILE, w: TILE, h: TILE,
+      type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
+    });
+  }
+  // Spawn the knight in the arena
+  let knightX = (knightWfCol + 3) * TILE;
   enemies.push({
-    x: knightX, y: (groundY - 1) * TILE - 8, w: 32, h: 36,
+    x: knightX, y: (knightWfRow - 2) * TILE, w: 32, h: 36,
     vx: 0, vy: 0,
     type: 'knight', hp: 3, maxHp: 3, alive: true, hurtTimer: 0,
     facing: -1, attackCooldown: 0,
-    patrolOrigin: knightX, patrolRange: (bossEnd - bossStart - 4) * TILE / 2,
+    patrolOrigin: knightWfCol * TILE, patrolRange: 7 * TILE,
     animFrame: 0, grounded: false,
-    chargeTimer: 0, // charge attack cooldown
-    phase: 'idle', // idle | chase | charge | recover
+    chargeTimer: 0,
+    phase: 'idle',
     phaseTimer: 60,
+  });
+  // Large waterfall curtain hiding the boss arena
+  decorations.push({
+    type: 'waterfall_curtain',
+    x: knightWfCol * TILE, y: (knightWfRow - 5) * TILE,
+    w: TILE * 3, h: TILE * 6,
+    phase: 0,
+    isBossWaterfall: true,
+  });
+  // Boss indicator decorations near the waterfall entrance
+  decorations.push({
+    type: 'boss_indicator',
+    x: (knightWfCol - 1) * TILE, y: (knightWfRow - 2) * TILE,
+    phase: 0,
+  });
+  // Gem reward for finding the secret boss
+  for (let g = 0; g < 6; g++) {
+    collectibles.push({
+      x: (knightWfCol + 1 + g) * TILE + 4, y: (knightWfRow - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  collectibles.push({
+    x: (knightWfCol + 4) * TILE, y: (knightWfRow - 1) * TILE,
+    w: 16, h: 16, type: 'heart', alive: true,
   });
 
   // --- Collectibles ---
@@ -1593,6 +1680,43 @@ function generateLevel2() {
 
   // Exit portal (after boss bridge)
   exitPortal = { x: (COLS - 6) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
+
+  // --- Waterfall curtain secrets — hidden rooms behind waterfalls ---
+  let waterfallCount = 0;
+  for (let i = 2; i < logPlatforms.length; i += 4) {
+    if (waterfallCount >= 3) break;
+    let plat = logPlatforms[i];
+    if (plat.len < 3) continue;
+    let wfCol = plat.col + plat.len + 1;
+    let wfRow = plat.row;
+    // Place a waterfall decoration with a hidden alcove behind it
+    decorations.push({
+      type: 'waterfall_curtain',
+      x: wfCol * TILE, y: (wfRow - 3) * TILE,
+      w: TILE * 2, h: TILE * 4,
+      phase: Math.random() * Math.PI * 2,
+    });
+    // Hidden alcove platform behind the waterfall
+    for (let c = 0; c < 3; c++) {
+      tiles.push({
+        x: (wfCol + c) * TILE, y: wfRow * TILE, w: TILE, h: TILE,
+        type: 'log', logStart: c === 0, logEnd: c === 2, logLen: 3,
+      });
+    }
+    // Bonus gems in the secret room
+    for (let g = 0; g < 4; g++) {
+      collectibles.push({
+        x: (wfCol + g * 0.7) * TILE + 4, y: (wfRow - 1) * TILE + 4,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+    // A heart pickup too
+    collectibles.push({
+      x: (wfCol + 1) * TILE, y: (wfRow - 1) * TILE,
+      w: 16, h: 16, type: 'heart', alive: true,
+    });
+    waterfallCount++;
+  }
 
   // --- Decorations ---
   let waterStartX = waterStart * TILE;
@@ -1952,6 +2076,60 @@ function generateLevel3() {
   tiles.push({ x: 150 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
 
   decorations.push({ x: 3 * TILE, y: groundY * TILE, type: 'signpost' });
+
+  // --- ATMOSPHERE: Parallax canopy layers (rendered in drawBackground) ---
+  // No generation needed — drawn procedurally in drawBackground
+
+  // --- ATMOSPHERE: Pollen/spore drift particles ---
+  for (let i = 0; i < 80; i++) {
+    let px = i * (COLS * TILE / 80) + Math.random() * 200;
+    decorations.push({
+      type: 'pollen',
+      x: px, y: Math.random() * BASE_H * 1.5,
+      vx: 0.2 + Math.random() * 0.3,
+      vy: -0.3 - Math.random() * 0.4,
+      phase: Math.random() * Math.PI * 2,
+      size: 1.5 + Math.random() * 2,
+      color: Math.random() < 0.6 ? '#ddcc55' : '#aaffaa',
+    });
+  }
+
+  // --- ATMOSPHERE: Bird silhouettes ---
+  for (let i = 0; i < 6; i++) {
+    decorations.push({
+      type: 'bird_silhouette',
+      x: Math.random() * COLS * TILE,
+      y: -40 - Math.random() * 100,
+      vx: 1.5 + Math.random() * 2,
+      wingPhase: Math.random() * Math.PI * 2,
+      active: false,
+      triggerX: (0.1 + i * 0.15) * COLS * TILE,
+    });
+  }
+
+  // --- ATMOSPHERE: Vine curtains (foreground) ---
+  for (let i = 0; i < 25; i++) {
+    let vx = i * (COLS * TILE / 25) + Math.random() * 150;
+    let nearRow = groundY;
+    for (const bp of branchPlatforms) {
+      if (Math.abs(vx - bp.col * TILE) < TILE * 3) { nearRow = bp.row; break; }
+    }
+    decorations.push({
+      type: 'vine_curtain',
+      x: vx, y: (nearRow - 6) * TILE,
+      length: 3 + Math.floor(Math.random() * 4),
+      phase: Math.random() * Math.PI * 2,
+      alpha: 0.15 + Math.random() * 0.1,
+    });
+  }
+
+  // --- ATMOSPHERE: Distant waterfall mist ---
+  decorations.push({
+    type: 'distant_waterfall',
+    x: COLS * TILE * 0.4,
+    y: 0,
+    phase: 0,
+  });
 }
 
 function generateLevel4() {
@@ -4235,6 +4413,67 @@ function update() {
     }
   }
 
+  // --- Branch sway on landing (Level 3) ---
+  if (currentLevel === 3 && player.grounded && !player._prevGrounded) {
+    for (const t of tiles) {
+      if (t.type === 'branch' && Math.abs(t.x - player.x) < TILE * 2 && Math.abs(t.y - (player.y + player.h)) < TILE) {
+        t.swayTimer = 20;
+      }
+    }
+  }
+  player._prevGrounded = player.grounded;
+  for (const t of tiles) {
+    if (t.swayTimer > 0) {
+      t.swayTimer--;
+      t.swayOffset = Math.sin(t.swayTimer * 0.5) * 3 * (t.swayTimer / 20);
+    } else {
+      t.swayOffset = 0;
+    }
+  }
+
+  // --- Corrupted tree hazards ---
+  for (const h of hazards) {
+    if (h.type !== 'corrupted_tree') continue;
+    h.cooldown--;
+    if (h.cooldown <= 0 && !h.attacking) {
+      let dx = Math.abs(player.x - h.x);
+      if (dx < TILE * 8) {
+        h.attacking = true;
+        h.windupTimer = 30;
+      }
+    }
+    if (h.attacking) {
+      if (h.windupTimer > 0) {
+        h.windupTimer--;
+        h.swingAngle = Math.sin(h.windupTimer * 0.5) * 0.05; // subtle shake telegraph
+      } else {
+        h.swingAngle += 0.15;
+        if (h.swingAngle > Math.PI * 0.6) {
+          h.attacking = false;
+          h.swingAngle = 0;
+          h.cooldown = h.maxCooldown;
+        }
+        // Check hit during swing
+        if (h.swingAngle > 0.3 && h.swingAngle < Math.PI * 0.5) {
+          let hitBox = {
+            x: h.x - TILE, y: h.y + TILE,
+            w: TILE * 5, h: TILE,
+          };
+          if (rectOverlap(player, hitBox) && player.invincible <= 0 && !player.dodging && !player.blocking) {
+            player.hp--;
+            player.invincible = 45;
+            player.vy = -6;
+            player.vx = (player.x < h.x + h.w / 2 ? -1 : 1) * 5;
+            shakeTimer = 8;
+            damageFlash = 0.5;
+            playSound('hurt');
+            spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#884422', 10, 5);
+          }
+        }
+      }
+    }
+  }
+
   // --- Current zones ---
   for (const h of hazards) {
     if (h.type !== 'current_zone') continue;
@@ -4272,6 +4511,7 @@ function update() {
   if (exitPortal && rectOverlap(player, exitPortal)) {
     playSound('win');
     // Save progress
+    saveProgress();
     saveHighScore(currentLevel, score);
     if (currentLevel === 0) {
       // Tutorial complete
@@ -4718,6 +4958,7 @@ function drawBackground() {
     ctx.save();
     for (let i = 0; i < 10; i++) {
       let bx = ((i * 140 + 40) - camera.x * 0.03) % (BASE_W + 120);
+      bx += Math.sin(frameCount * 0.005 + i * 0.8) * 15; // slow beam wander
       let pulse = 0.06 + Math.sin(frameCount * 0.012 + i * 1.2) * 0.03;
       ctx.globalAlpha = pulse;
       ctx.fillStyle = '#ddcc55';
@@ -4728,6 +4969,54 @@ function drawBackground() {
       ctx.lineTo(bx - 10 + i * 8, BASE_H);
       ctx.fill();
     }
+    // Player golden glow when in sunbeam
+    let playerSX = player.x - camera.x;
+    for (let i = 0; i < 10; i++) {
+      let bx = ((i * 140 + 40) - camera.x * 0.03) % (BASE_W + 120);
+      bx += Math.sin(frameCount * 0.005 + i * 0.8) * 15;
+      let bLeft = Math.min(bx, bx - 10 + i * 8);
+      let bRight = Math.max(bx + 20, bx + 40 + i * 8);
+      if (playerSX > bLeft && playerSX < bRight) {
+        ctx.globalAlpha = 0.05;
+        ctx.fillStyle = '#ffdd44';
+        ctx.fillRect(playerSX - 15, 0, 30, BASE_H);
+        break;
+      }
+    }
+    // Parallax canopy layers
+    ctx.save();
+    for (let layer = 0; layer < 3; layer++) {
+      ctx.globalAlpha = 0.12 - layer * 0.03;
+      ctx.fillStyle = ['#1a3a18', '#223a1a', '#2a4a22'][layer];
+      let scroll = camera.x * (0.01 + layer * 0.008);
+      for (let x = -50; x < BASE_W + 50; x += 80 + layer * 30) {
+        let bx = x - (scroll % (80 + layer * 30));
+        let h = 60 + layer * 20 + Math.sin(bx * 0.02 + layer) * 20;
+        ctx.beginPath();
+        ctx.arc(bx, h - 30, 40 + layer * 10, 0, Math.PI);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(bx + 30, h - 20, 30 + layer * 8, 0, Math.PI);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+    // Ambient color shift — warmer at start, cooler at end
+    let progressShift = Math.min(1, camera.x / (COLS * TILE * 0.8));
+    ctx.save();
+    ctx.globalAlpha = progressShift * 0.08;
+    ctx.fillStyle = '#2244aa';
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.restore();
+    // Distant waterfall mist in background
+    ctx.save();
+    let wfScreenX = COLS * TILE * 0.4 * 0.02 - camera.x * 0.02;
+    ctx.globalAlpha = 0.06 + Math.sin(frameCount * 0.01) * 0.02;
+    ctx.fillStyle = '#aaccee';
+    ctx.fillRect(wfScreenX, BASE_H * 0.3, 40, BASE_H * 0.7);
+    ctx.globalAlpha = 0.03;
+    ctx.fillRect(wfScreenX - 30, BASE_H * 0.5, 100, BASE_H * 0.5);
+    ctx.restore();
     ctx.restore();
   } else if (currentLevel === 1) {
     // Level 1: Dark Forest - Dusk atmosphere with purple and orange
@@ -5196,6 +5485,71 @@ function drawDecorations() {
       ctx.arc(fx, fy, 2, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+    } else if (d.type === 'pollen') {
+      d.x += d.vx + Math.sin(frameCount * 0.02 + d.phase) * 0.3;
+      d.y += d.vy;
+      if (d.y < -20) d.y = BASE_H + 20;
+      if (d.x > camera.x + BASE_W + 50) d.x = camera.x - 50;
+      let px = d.x - camera.x;
+      let py = d.y;
+      ctx.save();
+      ctx.globalAlpha = 0.4 + Math.sin(frameCount * 0.03 + d.phase) * 0.2;
+      ctx.fillStyle = d.color;
+      ctx.beginPath();
+      ctx.arc(px, py, d.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (d.type === 'bird_silhouette') {
+      if (!d.active && player.x > d.triggerX) d.active = true;
+      if (d.active) {
+        d.x += d.vx;
+        d.y += Math.sin(frameCount * 0.02 + d.wingPhase) * 0.3;
+        let bx = d.x - camera.x * 0.5;
+        let by = d.y;
+        if (bx > BASE_W + 100) { d.active = false; d.x = camera.x - 200; }
+        ctx.save();
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = '#1a1a1a';
+        // Simple bird shape
+        ctx.beginPath();
+        let wingY = Math.sin(frameCount * 0.1 + d.wingPhase) * 6;
+        ctx.moveTo(bx, by);
+        ctx.lineTo(bx - 10, by + wingY - 3);
+        ctx.lineTo(bx - 6, by);
+        ctx.lineTo(bx + 6, by);
+        ctx.lineTo(bx + 10, by + wingY - 3);
+        ctx.fill();
+        ctx.restore();
+      }
+    } else if (d.type === 'vine_curtain') {
+      let vx = d.x - camera.x;
+      if (vx > -50 && vx < BASE_W + 50) {
+        ctx.save();
+        ctx.globalAlpha = d.alpha;
+        ctx.strokeStyle = '#2a5a1a';
+        ctx.lineWidth = 2;
+        for (let v = 0; v < 3; v++) {
+          ctx.beginPath();
+          let startX = vx + v * 8;
+          ctx.moveTo(startX, d.y);
+          for (let seg = 0; seg < d.length; seg++) {
+            let sy = d.y + (seg + 1) * TILE;
+            let sx = startX + Math.sin(frameCount * 0.02 + d.phase + seg * 0.8 + v) * 4;
+            ctx.lineTo(sx, sy);
+          }
+          ctx.stroke();
+          // Small leaves on vine
+          for (let seg = 0; seg < d.length; seg++) {
+            let ly = d.y + (seg + 0.5) * TILE;
+            let lx = startX + Math.sin(frameCount * 0.02 + d.phase + seg * 0.8 + v) * 4;
+            ctx.fillStyle = '#3a7a2a';
+            ctx.beginPath();
+            ctx.ellipse(lx + 4, ly, 4, 2, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.restore();
+      }
     } else if (d.type === 'rock') {
       // Mossy forest rock
       let s = d.size;
@@ -6042,8 +6396,8 @@ function draw() {
   // Tiles
   for (const t of tiles) drawTile(t);
 
-  // Water in gaps — animated water surface where there's no ground
-  {
+  // Water in gaps — animated water surface where there's no ground (not in underground levels)
+  if (currentLevel !== 4) {
     let waterSurfY = GROUND_Y * TILE;
     let waterBottomY = (GROUND_Y + 2) * TILE;
     let startCol = Math.max(0, Math.floor(camera.x / TILE) - 1);
@@ -6628,6 +6982,156 @@ function draw() {
       ctx.lineTo(px, py);
       ctx.stroke();
     }
+  }
+
+  // Waterfall curtain secrets (drawn in front of player to hide the alcove)
+  for (const d of decorations) {
+    if (d.type !== 'waterfall_curtain') continue;
+    let dx = d.x - camera.x;
+    if (dx < -100 || dx > BASE_W + 100) continue;
+    let streamCount = d.isBossWaterfall ? 5 : 3;
+    let streamWidth = d.isBossWaterfall ? 14 : 12;
+    ctx.save();
+    // Waterfall streams
+    for (let s = 0; s < streamCount; s++) {
+      let sx = dx + s * streamWidth + Math.sin(frameCount * 0.08 + s * 1.5 + d.phase) * 3;
+      ctx.globalAlpha = 0.5 + Math.sin(frameCount * 0.06 + s) * 0.15;
+      ctx.fillStyle = '#88bbdd';
+      ctx.fillRect(sx, d.y, 8, d.h);
+      ctx.globalAlpha = 0.25;
+      ctx.fillStyle = '#aaddff';
+      ctx.fillRect(sx + 2, d.y, 3, d.h);
+    }
+    // Mist at base
+    let mistSize = d.isBossWaterfall ? 35 : 20;
+    ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.04 + d.phase) * 0.1;
+    ctx.fillStyle = '#aaccee';
+    ctx.beginPath();
+    ctx.arc(dx + TILE, d.y + d.h, mistSize, 0, Math.PI * 2);
+    ctx.fill();
+    // Boss waterfall: glowing red eyes peering through + periodic ground shake hint
+    if (d.isBossWaterfall) {
+      // Check if knight is alive
+      let knightAlive = enemies.some(e => e.type === 'knight' && e.alive);
+      if (knightAlive) {
+        // Red eyes flicker behind the water
+        let eyeFlicker = Math.sin(frameCount * 0.08) > 0.3;
+        if (eyeFlicker) {
+          ctx.globalAlpha = 0.25 + Math.sin(frameCount * 0.1) * 0.1;
+          ctx.fillStyle = '#ff2222';
+          let eyeY = d.y + d.h * 0.55;
+          ctx.beginPath();
+          ctx.arc(dx + TILE * 1.2, eyeY, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.arc(dx + TILE * 1.8, eyeY, 3, 0, Math.PI * 2);
+          ctx.fill();
+          // Eye glow halo
+          ctx.globalAlpha = 0.08;
+          ctx.beginPath();
+          ctx.arc(dx + TILE * 1.5, eyeY, 15, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        // Occasional armor glint
+        if (frameCount % 90 < 5) {
+          ctx.globalAlpha = 0.15;
+          ctx.fillStyle = '#ccccdd';
+          ctx.fillRect(dx + TILE * 1.3, d.y + d.h * 0.5, 12, 3);
+        }
+      }
+    }
+    // Splash particles at base
+    if (frameCount % 12 === 0) {
+      particles.push({
+        x: d.x + Math.random() * TILE * 2,
+        y: d.y + d.h,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -1 - Math.random() * 1.5,
+        life: 10 + Math.random() * 8,
+        color: '#88ccee',
+        size: 2 + Math.random() * 2,
+      });
+    }
+    ctx.restore();
+  }
+
+  // Boss indicator — sword scratches and warning signs near boss waterfall
+  for (const d of decorations) {
+    if (d.type !== 'boss_indicator') continue;
+    let dx = d.x - camera.x;
+    if (dx < -50 || dx > BASE_W + 50) continue;
+    ctx.save();
+    // Sword slash marks on the ground
+    ctx.strokeStyle = '#888899';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.4;
+    for (let s = 0; s < 3; s++) {
+      ctx.beginPath();
+      ctx.moveTo(dx + s * 10, d.y + 20);
+      ctx.lineTo(dx + s * 10 + 6, d.y + 8);
+      ctx.stroke();
+    }
+    // Faint red glow pulsing from behind waterfall direction
+    ctx.globalAlpha = 0.06 + Math.sin(frameCount * 0.04) * 0.03;
+    ctx.fillStyle = '#ff4444';
+    ctx.beginPath();
+    ctx.arc(dx + TILE * 2, d.y + TILE, 40, 0, Math.PI * 2);
+    ctx.fill();
+    // Scattered bones/debris
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#ccbbaa';
+    ctx.fillRect(dx + 5, d.y + 22, 8, 3);
+    ctx.fillRect(dx + 18, d.y + 25, 6, 2);
+    ctx.fillRect(dx + 30, d.y + 20, 10, 3);
+    ctx.restore();
+  }
+
+  // Corrupted trees
+  for (const h of hazards) {
+    if (h.type !== 'corrupted_tree') continue;
+    let cx = h.x - camera.x;
+    if (cx < -200 || cx > BASE_W + 200) continue;
+    ctx.save();
+    // Trunk — dark twisted tree
+    ctx.fillStyle = '#2a1a0a';
+    ctx.fillRect(cx + TILE, h.y - TILE * 2, TILE, TILE * 4);
+    // Corruption glow
+    ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.05) * 0.15;
+    ctx.fillStyle = '#882244';
+    ctx.fillRect(cx + TILE - 2, h.y - TILE * 2, TILE + 4, TILE * 4);
+    ctx.globalAlpha = 1;
+    // Swinging branch
+    if (h.attacking || h.swingAngle > 0) {
+      ctx.save();
+      ctx.translate(cx + TILE + TILE / 2, h.y);
+      ctx.rotate(-Math.PI / 3 + h.swingAngle);
+      ctx.fillStyle = '#3a2210';
+      ctx.fillRect(-4, 0, 8, TILE * 3);
+      // Branch tip thorns
+      ctx.fillStyle = '#661133';
+      ctx.fillRect(-8, TILE * 2.5, 16, 12);
+      // Telegraph glow during windup
+      if (h.windupTimer > 0) {
+        ctx.globalAlpha = 0.4 + Math.sin(h.windupTimer * 0.5) * 0.3;
+        ctx.fillStyle = '#ff4444';
+        ctx.fillRect(-12, TILE * 2, 24, 20);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+    }
+    // Corruption particles
+    if (frameCount % 20 === 0) {
+      particles.push({
+        x: h.x + TILE + Math.random() * TILE,
+        y: h.y - TILE + Math.random() * TILE * 3,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: -0.5 - Math.random() * 0.5,
+        life: 20 + Math.random() * 15,
+        color: '#882244',
+        size: 2 + Math.random() * 2,
+      });
+    }
+    ctx.restore();
   }
 
   // Current zones
