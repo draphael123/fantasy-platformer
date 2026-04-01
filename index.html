@@ -515,6 +515,7 @@ const MusicEngine = {
         let hootFreq = 280 + Math.random() * 60;
         self.playNote(hootFreq, 0.4, 'sine', 0.035);
         setTimeout(function() {
+          if (!self.playing) return;
           self.playNote(hootFreq * 0.85, 0.6, 'sine', 0.03);
         }, 500 + Math.random() * 200);
       }
@@ -575,6 +576,7 @@ const MusicEngine = {
         self.playNote(80 + Math.random() * 30, 0.15, 'sine', 0.05);
         if (Math.random() < 0.5) {
           setTimeout(function() {
+            if (!self.playing) return;
             self.playNote(90 + Math.random() * 20, 0.12, 'sine', 0.04);
           }, 300 + Math.random() * 200);
         }
@@ -658,6 +660,7 @@ const MusicEngine = {
         // Echo repeat (quieter, delayed)
         if (Math.random() < 0.6) {
           setTimeout(function() {
+            if (!self.playing) return;
             self.playNote(freq, 1.0, 'sine', 0.02);
           }, 800 + Math.random() * 600);
         }
@@ -1115,6 +1118,7 @@ let levelTitleTimer = 0; // Level title card display timer
 let comboDisplay = { count: 0, timer: 0, scale: 1 }; // Combo display state
 let deathZoom = 1; // Death screen zoom effect
 let deathDesaturate = 0; // Death screen desaturation
+let deathScreenTimeout = null; // Track death screen setTimeout to cancel on retry
 let crtEnabled = false; // CRT filter toggle
 let cameraZoom = 1.0; // Dynamic camera zoom
 let targetZoom = 1.0; // Target camera zoom
@@ -4586,6 +4590,7 @@ function isTouchingWall(dir) {
 
 // ---- PARTICLES ----
 function spawnParticles(x, y, color, count, spread) {
+  if (particles.length > 500) return; // cap to prevent unbounded growth
   for (let i = 0; i < count; i++) {
     particles.push({
       x, y,
@@ -5655,7 +5660,7 @@ function updateLevelAmbientEffects() {
     }
 
     // Spawn crumbling debris during boss fight when boss is alive
-    let boss = enemies.find(e => e.type === 'lich_boss' && e.alive);
+    let boss = enemies.find(e => e.type === 'dryad_boss' && e.alive);
     if (boss) {
       if (frameCount % 120 === 0) {
         // Spawn debris from ceiling
@@ -6226,6 +6231,7 @@ function update() {
   // Physics
   player.prevVy = player.vy;
   player.vy += GRAVITY;
+  if (player.vy > 14) player.vy = 14; // terminal velocity cap — prevent clipping through thin platforms
   player.x += player.vx;
   player.y += player.vy;
   player.wasGrounded = player.grounded;
@@ -7389,6 +7395,7 @@ function update() {
     }
 
     e.vy += GRAVITY;
+    if (e.vy > 14) e.vy = 14; // terminal velocity
     e.x += e.vx;
     e.y += e.vy;
     resolveCollision(e, true);
@@ -7568,86 +7575,6 @@ function update() {
         playSound('hurt');
         spawnParticles(p.x, p.y, '#44ff88', 8, 5);
         projectiles.splice(i, 1);
-      }
-    }
-  }
-
-  // --- Spore projectiles ---
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    let p = projectiles[i];
-    if (p.type !== 'spore') continue;
-    p.vy += 0.15; // light gravity
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
-    if (p.y > GROUND_Y * TILE) {
-      // Leave a small poison cloud
-      hazards.push({
-        type: 'spore_cloud',
-        x: p.x - 15, y: p.y - 15,
-        w: 30, h: 30,
-        life: 120,
-        damageTimer: 0,
-      });
-      spawnParticles(p.x, p.y, '#44ff88', 5, 2);
-      p.life = 0;
-      projectiles.splice(i, 1);
-    }
-  }
-
-  // --- Spore clouds ---
-  for (let i = hazards.length - 1; i >= 0; i--) {
-    let h = hazards[i];
-    if (h.type !== 'spore_cloud') continue;
-    h.life--;
-    if (h.life <= 0) { hazards.splice(i, 1); continue; }
-    if (rectOverlap(player, h) && player.invincible <= 0) {
-      h.damageTimer++;
-      if (h.damageTimer % 30 === 0) {
-        player.hp--;
-        player.invincible = 20;
-        spawnParticles(player.x + player.w/2, player.y + player.h, '#44ff88', 4, 2);
-      }
-    }
-  }
-
-  // --- Spore projectiles ---
-  for (let i = projectiles.length - 1; i >= 0; i--) {
-    let p = projectiles[i];
-    if (p.type !== 'spore') continue;
-    p.vy += 0.15; // light gravity
-    p.x += p.vx;
-    p.y += p.vy;
-    p.life--;
-    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
-    if (p.y > GROUND_Y * TILE) {
-      // Leave a small poison cloud
-      hazards.push({
-        type: 'spore_cloud',
-        x: p.x - 15, y: p.y - 15,
-        w: 30, h: 30,
-        life: 120,
-        damageTimer: 0,
-      });
-      spawnParticles(p.x, p.y, '#44ff88', 5, 2);
-      p.life = 0;
-      projectiles.splice(i, 1);
-    }
-  }
-
-  // --- Spore clouds ---
-  for (let i = hazards.length - 1; i >= 0; i--) {
-    let h = hazards[i];
-    if (h.type !== 'spore_cloud') continue;
-    h.life--;
-    if (h.life <= 0) { hazards.splice(i, 1); continue; }
-    if (rectOverlap(player, h) && player.invincible <= 0) {
-      h.damageTimer++;
-      if (h.damageTimer % 30 === 0) {
-        player.hp--;
-        player.invincible = 20;
-        spawnParticles(player.x + player.w/2, player.y + player.h, '#44ff88', 4, 2);
       }
     }
   }
@@ -8330,6 +8257,18 @@ function update() {
     if (p.life <= 0) particles.splice(i, 1);
   }
 
+  // --- Array size caps to prevent memory leaks in long sessions ---
+  if (particles.length > 600) particles.splice(0, particles.length - 400);
+  if (scorePopups.length > 50) scorePopups.splice(0, scorePopups.length - 30);
+  if (deadEnemies.length > 30) deadEnemies.splice(0, deadEnemies.length - 15);
+  if (afterimages.length > 50) afterimages.splice(0, afterimages.length - 30);
+  if (hitSparks.length > 100) hitSparks.splice(0, hitSparks.length - 50);
+  if (damageNumbers.length > 30) damageNumbers.splice(0, damageNumbers.length - 15);
+  if (hitSplatters.length > 50) hitSplatters.splice(0, hitSplatters.length - 25);
+  if (swordTrail.length > 30) swordTrail.splice(0, swordTrail.length - 15);
+  if (splashes.length > 30) splashes.splice(0, splashes.length - 15);
+  if (grassSwirls.length > 40) grassSwirls.splice(0, grassSwirls.length - 20);
+
   // --- Death ---
   if (player.hp <= 0 && gameState === 'playing') {
     playSound('death');
@@ -8359,9 +8298,11 @@ function update() {
       deathDesaturate = 0;
       deathAnimation.start();
       // Show death screen after a short delay via the draw loop
-      setTimeout(function() {
-        document.getElementById('deathScore').textContent = 'Score: ' + score;
-        document.getElementById('deathScreen').classList.remove('hidden');
+      deathScreenTimeout = setTimeout(function() {
+        if (gameState === 'dead') { // Only show if still dead (not restarted)
+          document.getElementById('deathScore').textContent = 'Score: ' + score;
+          document.getElementById('deathScreen').classList.remove('hidden');
+        }
       }, 1500); // 1.5 second death animation before showing UI
     }
   }
@@ -12319,12 +12260,12 @@ function draw() {
         bob += Math.abs(Math.sin(e.animFrame * 0.15)) * 2;
       }
       // Landing squash when just grounded
+      if (e._prevVy === undefined) e._prevVy = 0;
       if (e.grounded && e.vy === 0 && e._prevVy > 1) {
         eScaleX = 1.2;
         eScaleY = 0.8;
       }
     }
-    if (e._prevVy === undefined) e._prevVy = 0;
     if (e.type !== 'knight') e._prevVy = e.vy;
 
     if (e.type === 'knight') {
@@ -13756,6 +13697,16 @@ function startLevel(lvl) {
   screenFlash = { alpha: 0, color: '#fff' };
   frameCount = 0; camera.x = 0; camera.y = 0; shakeTimer = 0;
   hitStop = 0; respawnFlash = 0;
+  // Cancel any pending death screen timeout
+  if (deathScreenTimeout) { clearTimeout(deathScreenTimeout); deathScreenTimeout = null; }
+  // Reset death animation state to prevent carry-over
+  deathZoom = 1; deathDesaturate = 0;
+  deathAnimation.active = false; deathAnimation.debrisParticles = [];
+  // Reset level celebration
+  if (typeof levelCelebration !== 'undefined') levelCelebration.active = false;
+  // Reset damage tracking for star calculation
+  damageTaken = false;
+  levelTimer = 0;
 
   // BATCH 4: Initialize UI/HUD variables
   gemSparkles = [];
