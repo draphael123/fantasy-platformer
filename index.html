@@ -107,6 +107,7 @@
   <button class="menu-btn" id="playBtn" style="background:linear-gradient(135deg,#f39c12,#e67e22);box-shadow:0 4px 0 #d35400;">Continue</button>
   <button class="menu-btn" id="levelSelectBtn" style="background:linear-gradient(135deg,#2980b9,#3498db);box-shadow:0 4px 0 #1a5276;">Level Select</button>
   <button class="menu-btn" id="tutorialBtn" style="background:linear-gradient(135deg,#8e44ad,#9b59b6);box-shadow:0 4px 0 #6c3483;">Tutorial</button>
+  <button class="menu-btn" id="clearSaveBtn" style="background:linear-gradient(135deg,#c0392b,#e74c3c);box-shadow:0 4px 0 #922b21;font-size:12px;padding:8px 20px;margin-top:4px;">Clear Save Data</button>
   <div style="color:#667;margin-top:24px;font-size:13px;">
     Arrow Keys / WASD to move &nbsp;|&nbsp; Z to Attack &nbsp;|&nbsp; X to Dodge &nbsp;|&nbsp; C to Shield &nbsp;|&nbsp; 1/2 Potions
   </div>
@@ -344,6 +345,7 @@ const LEVELS = [
   { id: 2, name: 'Waterfall Pass', color: '#3498db', desc: 'Archers await' },
   { id: 3, name: 'Thornwood Canopy', color: '#c0a030', desc: 'Above the trees' },
   { id: 4, name: 'The Hollow Root', color: '#8844aa', desc: 'Beneath the ancient forest' },
+  { id: 5, name: 'The Goblin Throne', color: '#cc4444', desc: 'Face the Summoner King' },
 ];
 
 // ---- GAME STATE ----
@@ -365,7 +367,7 @@ let respawnFlash = 0; // white flash on respawn
 let totalGems = 0; // total gems in level
 let collectedGems = 0; // gems collected so far
 let currentLevel = 1;
-const MAX_LEVEL = 4;
+const MAX_LEVEL = 5;
 let projectiles = []; // { x, y, vx, vy, w, h, type, life }
 let levelTimer = 0; // frame counter for level completion time
 let damageTaken = false; // tracks if player took any damage this level
@@ -726,6 +728,7 @@ function generateLevel() {
   else if (currentLevel === 2) { generateLevel2(); }
   else if (currentLevel === 3) { generateLevel3(); }
   else if (currentLevel === 4) { generateLevel4(); }
+  else if (currentLevel === 5) { generateLevel5(); }
   initWeather();
 }
 
@@ -957,20 +960,7 @@ function generateLevel1() {
     caveCount++;
   }
 
-  // --- Moving log platforms over some gaps ---
-  for (const gap of gapLocations) {
-    if (gap.size < 3 || Math.random() > 0.35) continue;
-    hazards.push({
-      type: 'moving_log',
-      x: gap.col * TILE,
-      y: (groundY - 1) * TILE,
-      w: TILE * 2, h: TILE,
-      startX: (gap.col - 1) * TILE,
-      endX: (gap.col + gap.size) * TILE,
-      speed: 0.8 + Math.random() * 0.4,
-      dir: 1,
-    });
-  }
+  // (moving log platforms removed)
 
   // --- Enemies with difficulty curve: sparse early, dense late ---
   // First third: 2 enemies, middle third: 3 enemies, last third: 5 enemies
@@ -1108,8 +1098,9 @@ function generateLevel1() {
     if (ctx > restZoneStart - 100 && ctx < restZoneEnd + 100) continue;
     hazards.push({
       type: 'corrupted_tree',
-      x: ctCol * TILE, y: (groundY - 3) * TILE,
-      w: TILE * 3, h: TILE * 2,
+      x: ctCol * TILE, y: groundY * TILE,
+      w: TILE * 3, h: TILE * 4,
+      groundY: groundY,
       swingAngle: 0,
       swingSpeed: 0.03 + Math.random() * 0.02,
       swingPhase: Math.random() * Math.PI * 2,
@@ -2375,6 +2366,95 @@ function generateLevel4() {
   tiles.push({ x: 120 * TILE, y: (GROUND_Y - 1) * TILE, w: TILE, h: TILE, type: 'cracked_wall', hp: 3 });
 }
 
+function generateLevel5() {
+  // THE GOBLIN THRONE — boss arena level
+  let groundY = GROUND_Y;
+
+  // This is a shorter arena level, not a long platformer
+  COLS = Math.ceil(BASE_W / TILE) + 60;
+  LEVEL_W = COLS * TILE;
+
+  // --- Ground floor ---
+  for (let col = 0; col < COLS; col++) {
+    tiles.push({ x: col * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: col * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // --- Raised platforms for vertical gameplay ---
+  // Left platform
+  for (let c = 5; c < 12; c++) {
+    tiles.push({ x: c * TILE, y: (groundY - 4) * TILE, w: TILE, h: TILE, type: 'ground' });
+  }
+  // Right platform
+  for (let c = COLS - 14; c < COLS - 7; c++) {
+    tiles.push({ x: c * TILE, y: (groundY - 4) * TILE, w: TILE, h: TILE, type: 'ground' });
+  }
+  // Center high platform
+  let centerCol = Math.floor(COLS / 2);
+  for (let c = centerCol - 3; c < centerCol + 3; c++) {
+    tiles.push({ x: c * TILE, y: (groundY - 6) * TILE, w: TILE, h: TILE, type: 'ground' });
+  }
+
+  // --- Walls on edges ---
+  for (let r = 0; r < 8; r++) {
+    tiles.push({ x: 0, y: (groundY - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (COLS - 1) * TILE, y: (groundY - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+
+  // --- GOBLIN SUMMONER BOSS ---
+  let bossX = centerCol * TILE;
+  enemies.push({
+    x: bossX, y: (groundY - 2) * TILE, w: 28, h: 32,
+    vx: 0, vy: 0,
+    type: 'goblin_summoner', hp: 10, maxHp: 10, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0,
+    animFrame: 0, grounded: false,
+    phase: 'casting', // casting | tired | invincible
+    phaseTimer: 180,
+    spellsCast: 0,
+    maxSpells: 4, // spells before getting tired
+    tiredTimer: 0,
+    teleportCooldown: 0,
+    invincible: false,
+    totems: [], // track active totems
+    totemCooldown: 0,
+  });
+
+  // --- Collectibles ---
+  // Hearts around the arena
+  collectibles.push({ x: 8 * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (COLS - 10) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: 8 * TILE, y: (groundY - 5) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (COLS - 10) * TILE, y: (groundY - 5) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  // Gems
+  for (let i = 0; i < 15; i++) {
+    let gx = 3 * TILE + i * ((COLS - 6) * TILE / 15);
+    collectibles.push({ x: gx, y: (groundY - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  }
+
+  // --- Checkpoint (just inside the arena) ---
+  checkpoint = {
+    x: 3 * TILE, y: groundY * TILE - 28,
+    w: TILE, h: 28, activated: false,
+  };
+
+  // --- Exit portal (appears after boss dies — handled in update) ---
+  exitPortal = { x: centerCol * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
+  exitPortal.hidden = true; // hidden until boss dies
+
+  // --- Decorations ---
+  // Throne in background center
+  decorations.push({ type: 'throne', x: centerCol * TILE - TILE, y: (groundY - 3) * TILE });
+  // Banners on walls
+  for (let i = 0; i < 4; i++) {
+    decorations.push({ type: 'goblin_banner', x: (5 + i * Math.floor(COLS / 5)) * TILE, y: (groundY - 6) * TILE, phase: i * 0.5 });
+  }
+  // Skull piles
+  for (let i = 0; i < 6; i++) {
+    decorations.push({ type: 'skull_pile', x: (4 + i * Math.floor(COLS / 7)) * TILE, y: groundY * TILE - 8 });
+  }
+}
+
 // ---- PLAYER ----
 let player = {};
 function resetPlayer() {
@@ -3508,6 +3588,157 @@ function update() {
         playSound('hurt');
         spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff2222', 10, 6);
       }
+    } else if (e.type === 'goblin_summoner') {
+      // Goblin Summoner boss AI
+      let dx = player.x - e.x;
+      let dist = Math.abs(dx);
+      e.facing = dx > 0 ? 1 : -1;
+
+      // Exit portal appears when boss dies (handled after this block)
+
+      if (e.phase === 'casting') {
+        e.phaseTimer--;
+        e.teleportCooldown--;
+
+        // Teleport around the room
+        if (e.teleportCooldown <= 0 && e.spellsCast < e.maxSpells) {
+          // Teleport to a random position
+          let teleSpots = [
+            { x: 8 * TILE, y: (GROUND_Y - 1) * TILE },
+            { x: (COLS - 12) * TILE, y: (GROUND_Y - 1) * TILE },
+            { x: 8 * TILE, y: (GROUND_Y - 5) * TILE },
+            { x: (COLS - 12) * TILE, y: (GROUND_Y - 5) * TILE },
+            { x: Math.floor(COLS / 2) * TILE, y: (GROUND_Y - 7) * TILE },
+          ];
+          let spot = teleSpots[Math.floor(Math.random() * teleSpots.length)];
+          // Don't teleport to same spot
+          if (Math.abs(spot.x - e.x) > TILE * 3) {
+            spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#aa44ff', 10, 4);
+            e.x = spot.x;
+            e.y = spot.y;
+            spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#aa44ff', 10, 4);
+            playSound('block');
+          }
+          e.teleportCooldown = 60;
+        }
+
+        // Cast spell (fire a projectile at the player)
+        if (e.phaseTimer <= 0 && e.spellsCast < e.maxSpells) {
+          let angle = Math.atan2(player.y - e.y, player.x - e.x);
+          let spd = 3;
+          projectiles.push({
+            x: e.x + e.w / 2, y: e.y + e.h / 2,
+            vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd,
+            w: 8, h: 8, type: 'summoner_bolt', life: 180, fromEnemy: true,
+          });
+          e.spellsCast++;
+          e.phaseTimer = 45; // time between spells
+          spawnParticles(e.x + e.w / 2, e.y, '#ff6644', 6, 3);
+        }
+
+        // After maxSpells, get tired
+        if (e.spellsCast >= e.maxSpells) {
+          e.phase = 'tired';
+          e.tiredTimer = 150; // 2.5 seconds vulnerable
+          e.invincible = false;
+          e.spellsCast = 0;
+          scorePopups.push({ x: e.x, y: e.y - 20, text: 'DAZED!', life: 60 });
+        }
+      } else if (e.phase === 'tired') {
+        // Boss is dazed and vulnerable — doesn't move
+        e.vx = 0;
+        e.tiredTimer--;
+        // Visual: wobble
+        if (e.tiredTimer <= 0) {
+          e.phase = 'invincible';
+          e.phaseTimer = 120; // place totems phase
+          e.totemCooldown = 0;
+        }
+      } else if (e.phase === 'invincible') {
+        // Boss places totems and becomes invincible
+        e.invincible = true;
+        e.phaseTimer--;
+        e.totemCooldown--;
+
+        // Place totems
+        if (e.totemCooldown <= 0 && e.totems.filter(t => t.alive).length < 2) {
+          let totemSpots = [
+            { x: 10 * TILE, y: (GROUND_Y - 1) * TILE },
+            { x: (COLS - 12) * TILE, y: (GROUND_Y - 1) * TILE },
+            { x: Math.floor(COLS / 2 - 5) * TILE, y: (GROUND_Y - 1) * TILE },
+            { x: Math.floor(COLS / 2 + 5) * TILE, y: (GROUND_Y - 1) * TILE },
+          ];
+          let spot = totemSpots[Math.floor(Math.random() * totemSpots.length)];
+          let totem = {
+            x: spot.x, y: spot.y - 24, w: 16, h: 24,
+            hp: 2, alive: true, shootTimer: 60,
+          };
+          e.totems.push(totem);
+          spawnParticles(spot.x + 8, spot.y - 12, '#44ff44', 8, 4);
+          e.totemCooldown = 40;
+        }
+
+        // Update totems — shoot at player
+        for (const t of e.totems) {
+          if (!t.alive) continue;
+          t.shootTimer--;
+          if (t.shootTimer <= 0) {
+            let angle = Math.atan2(player.y - t.y, player.x - t.x);
+            projectiles.push({
+              x: t.x + t.w / 2, y: t.y,
+              vx: Math.cos(angle) * 2, vy: Math.sin(angle) * 2,
+              w: 6, h: 6, type: 'totem_bolt', life: 120, fromEnemy: true,
+            });
+            t.shootTimer = 90;
+          }
+        }
+
+        // When phase ends or all totems dead, go back to casting
+        let aliveTotems = e.totems.filter(t => t.alive).length;
+        if (e.phaseTimer <= 0 || aliveTotems === 0) {
+          e.phase = 'casting';
+          e.phaseTimer = 45;
+          e.invincible = false;
+          e.teleportCooldown = 30;
+        }
+      }
+
+      // Totem collision with player attacks
+      for (const t of e.totems) {
+        if (!t.alive) continue;
+        if (player.attacking && player.attackFrame < 8) {
+          let atkBox = {
+            x: player.x + (player.facing > 0 ? player.w : -30),
+            y: player.y, w: 30, h: player.h,
+          };
+          if (rectOverlap(atkBox, t)) {
+            t.hp--;
+            if (t.hp <= 0) {
+              t.alive = false;
+              spawnParticles(t.x + t.w / 2, t.y + t.h / 2, '#44ff44', 12, 5);
+              playSound('hit');
+              score += 50;
+            } else {
+              spawnParticles(t.x + t.w / 2, t.y + t.h / 2, '#aaff44', 6, 3);
+              playSound('block');
+            }
+          }
+        }
+      }
+
+      // Block damage to boss when invincible
+      if (e.invincible && e.hurtTimer === 1) {
+        e.hp = Math.min(e.maxHp, e.hp + 1); // undo damage
+        scorePopups.push({ x: e.x, y: e.y - 30, text: 'INVINCIBLE!', life: 40 });
+      }
+
+      // Show exit portal when boss dies
+      if (!e.alive && exitPortal && exitPortal.hidden) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 20, 8);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'EXIT OPENED!', life: 90 });
+      }
+
     } else if (e.type === 'dryad_boss') {
       // Corrupted Dryad boss AI — floats in place, shoots vines, spawns adds
       let dx = player.x - e.x;
@@ -4456,8 +4687,8 @@ function update() {
         // Check hit during swing
         if (h.swingAngle > 0.3 && h.swingAngle < Math.PI * 0.5) {
           let hitBox = {
-            x: h.x - TILE, y: h.y + TILE,
-            w: TILE * 5, h: TILE,
+            x: h.x - TILE, y: h.y - TILE * 2,
+            w: TILE * 5, h: TILE * 3,
           };
           if (rectOverlap(player, hitBox) && player.invincible <= 0 && !player.dodging && !player.blocking) {
             player.hp--;
@@ -4508,7 +4739,7 @@ function update() {
   }
 
   // --- Exit portal ---
-  if (exitPortal && rectOverlap(player, exitPortal)) {
+  if (exitPortal && !exitPortal.hidden && rectOverlap(player, exitPortal)) {
     playSound('win');
     // Save progress
     saveProgress();
@@ -5157,6 +5388,33 @@ function drawBackground() {
         ctx.lineTo(rx, ry);
       }
       ctx.stroke();
+    }
+    ctx.restore();
+  } else if (currentLevel === 5) {
+    // The Goblin Throne — dark volcanic throne room
+    let grad = ctx.createLinearGradient(0, 0, 0, BASE_H);
+    grad.addColorStop(0, '#1a0808');
+    grad.addColorStop(0.3, '#2a0a0a');
+    grad.addColorStop(0.6, '#1a0505');
+    grad.addColorStop(1, '#0a0202');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    // Lava glow from below
+    ctx.save();
+    ctx.globalAlpha = 0.06 + Math.sin(frameCount * 0.02) * 0.03;
+    ctx.fillStyle = '#ff4400';
+    ctx.fillRect(0, BASE_H * 0.7, BASE_W, BASE_H * 0.3);
+    ctx.restore();
+    // Floating embers
+    ctx.save();
+    for (let i = 0; i < 8; i++) {
+      let ex = ((i * 130 + 40 + frameCount * 0.3) % (BASE_W + 60)) - 30;
+      let ey = BASE_H - 50 - i * 40 - Math.sin(frameCount * 0.02 + i * 2) * 30;
+      ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.05 + i) * 0.15;
+      ctx.fillStyle = '#ff6622';
+      ctx.beginPath();
+      ctx.arc(ex, ey, 2 + Math.sin(frameCount * 0.1 + i) * 1, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.restore();
   } else {
@@ -6066,6 +6324,50 @@ function drawDecorations() {
       ctx.lineTo(sx + 3, d.y - 8);
       ctx.fill();
       ctx.restore();
+    }
+    if (d.type === 'throne') {
+      let dx = d.x - camera.x;
+      // Large stone throne
+      ctx.fillStyle = '#444';
+      ctx.fillRect(dx, d.y, TILE * 2, TILE * 3);
+      ctx.fillStyle = '#555';
+      ctx.fillRect(dx + 4, d.y - TILE, TILE * 2 - 8, TILE);
+      // Goblin skull on top
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath();
+      ctx.arc(dx + TILE, d.y - TILE - 8, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff2222';
+      ctx.fillRect(dx + TILE - 4, d.y - TILE - 10, 3, 3);
+      ctx.fillRect(dx + TILE + 2, d.y - TILE - 10, 3, 3);
+    }
+    if (d.type === 'goblin_banner') {
+      let dx = d.x - camera.x;
+      // Banner pole
+      ctx.fillStyle = '#666';
+      ctx.fillRect(dx + TILE / 2 - 1, d.y, 2, TILE * 3);
+      // Banner cloth
+      let sway = Math.sin(frameCount * 0.03 + d.phase) * 3;
+      ctx.fillStyle = '#cc2222';
+      ctx.fillRect(dx + TILE / 2 + 2, d.y + 4 + sway, 16, 24);
+      // Skull icon on banner
+      ctx.fillStyle = '#ffccaa';
+      ctx.beginPath();
+      ctx.arc(dx + TILE / 2 + 10, d.y + 14 + sway, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    if (d.type === 'skull_pile') {
+      let dx = d.x - camera.x;
+      ctx.fillStyle = '#aaa';
+      for (let s = 0; s < 3; s++) {
+        ctx.beginPath();
+        ctx.arc(dx + s * 8, d.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#888';
+      ctx.beginPath();
+      ctx.arc(dx + 8, d.y - 6, 4, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }
@@ -7086,49 +7388,86 @@ function draw() {
     ctx.restore();
   }
 
-  // Corrupted trees
+  // Corrupted trees — looks like a normal tree but with corruption hints
   for (const h of hazards) {
     if (h.type !== 'corrupted_tree') continue;
     let cx = h.x - camera.x;
     if (cx < -200 || cx > BASE_W + 200) continue;
     ctx.save();
-    // Trunk — dark twisted tree
-    ctx.fillStyle = '#2a1a0a';
-    ctx.fillRect(cx + TILE, h.y - TILE * 2, TILE, TILE * 4);
-    // Corruption glow
-    ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.05) * 0.15;
-    ctx.fillStyle = '#882244';
-    ctx.fillRect(cx + TILE - 2, h.y - TILE * 2, TILE + 4, TILE * 4);
+    let baseY = h.y; // ground level
+    // Trunk — like a normal tree but slightly darker/twisted
+    ctx.fillStyle = '#3a2a1a';
+    let trunkX = cx + TILE + 4;
+    let trunkW = TILE - 8;
+    ctx.fillRect(trunkX, baseY - TILE * 3.5, trunkW, TILE * 3.5);
+    // Bark texture lines
+    ctx.strokeStyle = '#2a1a0a';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.4;
+    for (let b = 0; b < 4; b++) {
+      let by = baseY - TILE * 3 + b * TILE * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(trunkX + 2, by);
+      ctx.lineTo(trunkX + trunkW - 2, by + 8);
+      ctx.stroke();
+    }
     ctx.globalAlpha = 1;
-    // Swinging branch
+    // Canopy — round green top like normal trees, but with dark veins
+    let canopyY = baseY - TILE * 4.5;
+    let canopyR = TILE * 1.4;
+    ctx.fillStyle = '#2a5a1a';
+    ctx.beginPath();
+    ctx.arc(trunkX + trunkW / 2, canopyY, canopyR, 0, Math.PI * 2);
+    ctx.fill();
+    // Darker inner canopy
+    ctx.fillStyle = '#1a4a12';
+    ctx.beginPath();
+    ctx.arc(trunkX + trunkW / 2 - 4, canopyY - 4, canopyR * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    // Corruption veins — subtle purple tendrils on the trunk
+    ctx.strokeStyle = '#662244';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.04) * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(trunkX + trunkW / 2, baseY);
+    ctx.bezierCurveTo(trunkX - 4, baseY - TILE * 1.5, trunkX + trunkW + 4, baseY - TILE * 2.5, trunkX + trunkW / 2, baseY - TILE * 3.5);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Swinging branch — extends from trunk mid-height
+    let branchOriginY = baseY - TILE * 2;
     if (h.attacking || h.swingAngle > 0) {
       ctx.save();
-      ctx.translate(cx + TILE + TILE / 2, h.y);
+      ctx.translate(trunkX + trunkW / 2, branchOriginY);
       ctx.rotate(-Math.PI / 3 + h.swingAngle);
-      ctx.fillStyle = '#3a2210';
-      ctx.fillRect(-4, 0, 8, TILE * 3);
-      // Branch tip thorns
-      ctx.fillStyle = '#661133';
-      ctx.fillRect(-8, TILE * 2.5, 16, 12);
-      // Telegraph glow during windup
+      // Branch wood
+      ctx.fillStyle = '#3a2a12';
+      ctx.fillRect(-3, 0, 6, TILE * 2.5);
+      // Leaves on branch
+      ctx.fillStyle = '#2a5a1a';
+      ctx.beginPath();
+      ctx.arc(0, TILE * 2.2, 10, 0, Math.PI * 2);
+      ctx.fill();
+      // Telegraph: corruption glow during windup
       if (h.windupTimer > 0) {
-        ctx.globalAlpha = 0.4 + Math.sin(h.windupTimer * 0.5) * 0.3;
+        ctx.globalAlpha = 0.3 + Math.sin(h.windupTimer * 0.5) * 0.2;
         ctx.fillStyle = '#ff4444';
-        ctx.fillRect(-12, TILE * 2, 24, 20);
+        ctx.beginPath();
+        ctx.arc(0, TILE * 2, 14, 0, Math.PI * 2);
+        ctx.fill();
         ctx.globalAlpha = 1;
       }
       ctx.restore();
     }
-    // Corruption particles
-    if (frameCount % 20 === 0) {
+    // Subtle corruption particles (sparse)
+    if (frameCount % 40 === 0) {
       particles.push({
         x: h.x + TILE + Math.random() * TILE,
-        y: h.y - TILE + Math.random() * TILE * 3,
-        vx: (Math.random() - 0.5) * 0.5,
-        vy: -0.5 - Math.random() * 0.5,
-        life: 20 + Math.random() * 15,
-        color: '#882244',
-        size: 2 + Math.random() * 2,
+        y: baseY - TILE * 2 + Math.random() * TILE,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: -0.3 - Math.random() * 0.3,
+        life: 15 + Math.random() * 10,
+        color: '#662244',
+        size: 1.5 + Math.random() * 1.5,
       });
     }
     ctx.restore();
@@ -7575,6 +7914,74 @@ function draw() {
         ctx.fillRect(-22, 0, 44, 52);
       }
       ctx.restore();
+    } else if (e.type === 'goblin_summoner') {
+      // Goblin Summoner boss
+      let sx = e.x - camera.x;
+      // Body — robed goblin
+      ctx.fillStyle = e.phase === 'tired' ? '#666644' : (e.invincible ? '#8844cc' : '#446622');
+      ctx.fillRect(sx + 4, e.y + 8, 20, 24);
+      // Head
+      ctx.fillStyle = '#5a8a33';
+      ctx.fillRect(sx + 6, e.y, 16, 12);
+      // Eyes
+      ctx.fillStyle = e.phase === 'tired' ? '#888' : '#ff4444';
+      ctx.fillRect(sx + 8, e.y + 3, 4, 4);
+      ctx.fillRect(sx + 16, e.y + 3, 4, 4);
+      // Staff
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(sx + (e.facing > 0 ? 24 : -4), e.y - 4, 4, 36);
+      // Staff orb
+      ctx.fillStyle = e.invincible ? '#aa44ff' : '#44ff44';
+      ctx.beginPath();
+      ctx.arc(sx + (e.facing > 0 ? 26 : -2), e.y - 6, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // Hood
+      ctx.fillStyle = '#334411';
+      ctx.fillRect(sx + 4, e.y - 2, 20, 6);
+      // Dazed stars when tired
+      if (e.phase === 'tired') {
+        for (let s = 0; s < 3; s++) {
+          let starAngle = frameCount * 0.08 + s * Math.PI * 2 / 3;
+          let starX = sx + 14 + Math.cos(starAngle) * 12;
+          let starY = e.y - 8 + Math.sin(starAngle) * 6;
+          ctx.fillStyle = '#ffdd44';
+          ctx.fillRect(starX - 2, starY - 2, 4, 4);
+        }
+      }
+      // Invincible shield effect
+      if (e.invincible) {
+        ctx.globalAlpha = 0.2 + Math.sin(frameCount * 0.1) * 0.1;
+        ctx.strokeStyle = '#aa44ff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(sx + 14, e.y + 16, 22, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      // Draw totems
+      if (e.totems) {
+        for (const t of e.totems) {
+          if (!t.alive) continue;
+          let tx = t.x - camera.x;
+          // Totem pole
+          ctx.fillStyle = '#8B6914';
+          ctx.fillRect(tx + 2, t.y, 12, 24);
+          // Totem face
+          ctx.fillStyle = '#44cc44';
+          ctx.fillRect(tx + 4, t.y + 4, 8, 6);
+          // Totem eyes
+          ctx.fillStyle = '#ff2222';
+          ctx.fillRect(tx + 5, t.y + 5, 3, 3);
+          ctx.fillRect(tx + 9, t.y + 5, 3, 3);
+          // Glow pulse
+          ctx.globalAlpha = 0.15 + Math.sin(frameCount * 0.08) * 0.1;
+          ctx.fillStyle = '#44ff44';
+          ctx.beginPath();
+          ctx.arc(tx + 8, t.y + 12, 12, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
     } else if (e.type === 'toad_boss') {
       // Giant Toad boss drawing using pixel art
       drawPixelArt(GIANT_TOAD, sx, e.y, 2, e.facing < 0);
@@ -8456,6 +8863,13 @@ function startGame() {
 // Wire up menu buttons
 document.getElementById('playBtn').addEventListener('click', startGame);
 document.getElementById('tutorialBtn').addEventListener('click', () => { startLevel(0); });
+document.getElementById('clearSaveBtn').addEventListener('click', () => {
+  if (confirm('Clear all save data? This resets progress, stats, and shop purchases.')) {
+    clearSave();
+    try { localStorage.removeItem('realmOfTheFallen_save'); } catch(e) {}
+    location.reload();
+  }
+});
 document.getElementById('levelSelectBtn').addEventListener('click', showLevelSelect);
 document.getElementById('levelBackBtn').addEventListener('click', showMainMenu);
 document.getElementById('retryBtn').addEventListener('click', () => { startLevel(currentLevel); });
