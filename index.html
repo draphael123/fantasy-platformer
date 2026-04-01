@@ -3685,18 +3685,21 @@ function generateLevel2() {
     }
   }
 
-  // --- Long boss bridge: wooden bridge planks over water ---
+  // --- Long boss bridge: wooden bridge planks over water (raised 2 tiles above water) ---
+  let bridgeY = groundY - 2;
   for (let c = bridgeStart; c <= bridgeEnd; c++) {
     tiles.push({
-      x: c * TILE, y: groundY * TILE, w: TILE, h: TILE,
+      x: c * TILE, y: bridgeY * TILE, w: TILE, h: TILE,
       type: 'bridge_plank', plankStart: c === bridgeStart, plankEnd: c === bridgeEnd,
     });
   }
-  // Small platform at very end for exit portal
-  for (let c = bridgeEnd + 1; c < COLS; c++) {
-    tiles.push({ x: c * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
-    tiles.push({ x: c * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  // Support posts under bridge every 5 tiles
+  for (let c = bridgeStart; c <= bridgeEnd; c += 5) {
+    for (let r = bridgeY + 1; r <= groundY; r++) {
+      tiles.push({ x: c * TILE, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
+    }
   }
+  // Bridge extends to the end — no grass section
 
   // --- FLOATING LOG PLATFORMS across the water zone ---
   let logPlatforms = [];
@@ -3729,7 +3732,7 @@ function generateLevel2() {
     let gap = 2 + Math.floor(Math.random() * 2); // 2 or 3 tile gap (always jumpable)
     curCol += logLen + gap;
   }
-  // Safety: ensure last platform reaches near the bridge start
+  // Safety: ensure last platform reaches near the bridge start (match bridge height)
   if (logPlatforms.length > 0) {
     let last = logPlatforms[logPlatforms.length - 1];
     let lastEnd = last.col + last.len;
@@ -3739,11 +3742,11 @@ function generateLevel2() {
       let bridgeLen = 3;
       for (let c = 0; c < bridgeLen; c++) {
         tiles.push({
-          x: (bridgeCol + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
+          x: (bridgeCol + c) * TILE, y: bridgeY * TILE, w: TILE, h: TILE,
           type: 'log', logStart: c === 0, logEnd: c === bridgeLen - 1, logLen: bridgeLen,
         });
       }
-      logPlatforms.push({ col: bridgeCol, len: bridgeLen, row: groundY - 1 });
+      logPlatforms.push({ col: bridgeCol, len: bridgeLen, row: bridgeY });
     }
   }
 
@@ -3798,7 +3801,7 @@ function generateLevel2() {
   // --- GOBLIN KNIGHT MINI-BOSS on the bridge ---
   let knightX = (bridgeStart + Math.floor((bridgeEnd - bridgeStart) / 2)) * TILE;
   enemies.push({
-    x: knightX, y: (groundY - 2) * TILE, w: 40, h: 48,
+    x: knightX, y: (bridgeY - 2) * TILE, w: 40, h: 48,
     vx: 0, vy: 0,
     type: 'knight', hp: 4, maxHp: 4, alive: true, hurtTimer: 0,
     facing: -1, attackCooldown: 0,
@@ -3813,7 +3816,7 @@ function generateLevel2() {
   let barricadePositions = [bridgeStart + 3, bridgeStart + Math.floor((bridgeEnd - bridgeStart) * 0.7)];
   for (let bCol of barricadePositions) {
     tiles.push({
-      x: bCol * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
+      x: bCol * TILE, y: (bridgeY - 1) * TILE, w: TILE, h: TILE,
       type: 'crate', hp: 2, maxHp: 2,
     });
   }
@@ -3842,7 +3845,7 @@ function generateLevel2() {
   // --- Third checkpoint before the bridge ---
   hazards.push({
     type: 'checkpoint2',
-    x: (bridgeStart - 3) * TILE, y: groundY * TILE - 28,
+    x: (bridgeStart - 3) * TILE, y: bridgeY * TILE - 28,
     w: TILE, h: TILE, activated: false,
   });
 
@@ -4014,6 +4017,82 @@ function generateLevel2() {
     });
   }
 
+  // --- SHIPWRECK SETPIECE (at ~70% of water zone) ---
+  let shipCol = Math.floor(waterStart + (waterEnd - waterStart) * 0.7);
+  // Tilted hull: wide platform with angled crate stacks
+  for (let c = 0; c < 8; c++) {
+    tiles.push({
+      x: (shipCol + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
+      type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
+    });
+  }
+  // Mast (vertical crate stack)
+  for (let r = 0; r < 4; r++) {
+    tiles.push({
+      x: (shipCol + 4) * TILE, y: (groundY - 2 - r) * TILE, w: TILE, h: TILE,
+      type: 'crate', hp: 3, maxHp: 3,
+    });
+  }
+  // Crow's nest platform at top of mast
+  for (let c = 0; c < 3; c++) {
+    tiles.push({
+      x: (shipCol + 3 + c) * TILE, y: (groundY - 6) * TILE, w: TILE, h: TILE,
+      type: 'log', logStart: c === 0, logEnd: c === 2, logLen: 3,
+    });
+  }
+  // Treasure on the crow's nest
+  collectibles.push({ x: (shipCol + 4) * TILE, y: (groundY - 7) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  for (let g = 0; g < 3; g++) {
+    collectibles.push({ x: (shipCol + 3 + g) * TILE + 10, y: (groundY - 7) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  }
+  // Archers defending the shipwreck
+  enemies.push({
+    x: (shipCol + 1) * TILE, y: (groundY - 2) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, shootTimer: 60, windingUp: 0, aggro: false,
+    patrolOrigin: (shipCol + 1) * TILE, patrolRange: 3 * TILE, animFrame: 0, grounded: false,
+  });
+  enemies.push({
+    x: (shipCol + 6) * TILE, y: (groundY - 2) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0, shootTimer: 90, windingUp: 0, aggro: false,
+    patrolOrigin: (shipCol + 6) * TILE, patrolRange: 2 * TILE, animFrame: 0, grounded: false,
+  });
+  // Shipwreck decorations
+  decorations.push({ type: 'torch', x: (shipCol) * TILE, y: (groundY - 2) * TILE - 8 });
+  decorations.push({ type: 'torch', x: (shipCol + 7) * TILE, y: (groundY - 2) * TILE - 8 });
+  // Fog around shipwreck
+  for (let f = 0; f < 3; f++) {
+    decorations.push({
+      x: (shipCol + f * 3) * TILE, y: (groundY - 1) * TILE,
+      type: 'fog', width: 40 + Math.random() * 20, phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  // --- COLLAPSING PLATFORM GAUNTLET (at ~80% of water zone) ---
+  let gauntletCol = Math.floor(waterStart + (waterEnd - waterStart) * 0.82);
+  // 6 small platforms in quick succession — each collapses after being stood on
+  for (let p = 0; p < 6; p++) {
+    let pCol = gauntletCol + p * 3;
+    let pRow = groundY - 1 - (p % 2); // alternating heights
+    if (pCol >= waterEnd - 3) break;
+    for (let c = 0; c < 2; c++) {
+      tiles.push({
+        x: (pCol + c) * TILE, y: pRow * TILE, w: TILE, h: TILE,
+        type: 'log', logStart: c === 0, logEnd: c === 1, logLen: 2,
+        collapsing: false, collapseTimer: 0, collapsed: false, shakeTimer: 0,
+        collapseDelay: 25, // faster collapse
+      });
+    }
+    // Gem trail above each platform
+    collectibles.push({
+      x: pCol * TILE + 10, y: (pRow - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+  // "DANGER" sign before the gauntlet
+  decorations.push({ x: (gauntletCol - 2) * TILE, y: (groundY - 1) * TILE, type: 'tutSign', text1: 'Quick!', text2: 'Don\'t stop!' });
+
   // --- Water zone environmental decorations ---
   // Cattails and lily pads near water
   for (let i = 0; i < 8; i++) {
@@ -4064,11 +4143,11 @@ function generateLevel2() {
       collectibles.push({ x: gx, y: (plat.row - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
     }
   }
-  // Gems in exit area
+  // Gems along the bridge
   for (let i = 0; i < 6; i++) {
-    let cx = bridgeEnd * TILE + 40 + i * 50;
-    if (!hasGroundAt(cx + 6)) continue;
-    collectibles.push({ x: cx, y: (groundY - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+    let cx = (bridgeStart + 2 + i * 3) * TILE;
+    if (cx > bridgeEnd * TILE) break;
+    collectibles.push({ x: cx, y: (bridgeY - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
   }
 
   // Hearts on platforms
@@ -4080,8 +4159,8 @@ function generateLevel2() {
     });
   }
   // Hearts before boss bridge
-  collectibles.push({ x: (bridgeStart - 1) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
-  collectibles.push({ x: (bridgeStart) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (bridgeStart - 1) * TILE, y: (bridgeY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (bridgeStart) * TILE, y: (bridgeY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
 
   // --- Elevated escape platforms for rising water ---
   let elevatedPlatforms = [];
@@ -4139,7 +4218,7 @@ function generateLevel2() {
   }
 
   // Exit portal (at end of bridge, hidden until knight boss dies)
-  exitPortal = { x: (COLS - 4) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2, hidden: true };
+  exitPortal = { x: (bridgeEnd - 1) * TILE, y: (bridgeY - 2) * TILE, w: TILE * 2, h: TILE * 2, hidden: true };
 
   // --- Secret alcoves with bonus items ---
   let alcoveCount = 0;
@@ -4342,69 +4421,7 @@ function generateLevel3() {
     decorations.push({ x: gustX + gustW / 2, y: (Math.min(bp.row, next.row)) * TILE, type: 'windMarker', dir: gustDir });
   }
 
-  // --- SECRET TREE HOLLOW (at ~35% — hidden bioluminescent chamber) ---
-  let hollowIdx = Math.floor(branchPlatforms.length * 0.35);
-  let hollowPlat = branchPlatforms[hollowIdx];
-  if (hollowPlat && hollowPlat.len >= 3) {
-    let hollowCol = hollowPlat.col;
-    let hollowRow = hollowPlat.row;
-    // Vine-covered entrance hint (decoration on the platform)
-    decorations.push({
-      x: (hollowCol + 1) * TILE, y: hollowRow * TILE - 4,
-      type: 'vine', length: 5, phase: 0,
-    });
-    decorations.push({
-      x: (hollowCol + 1) * TILE + 8, y: hollowRow * TILE,
-      type: 'sparkle', phase: Math.random() * Math.PI * 2,
-    });
-    // Hidden chamber below the platform (drop down through a 2-tile gap)
-    // Remove 2 tiles from this platform to create entrance hole
-    tiles = tiles.filter(t => !(t.x >= (hollowCol + 1) * TILE && t.x < (hollowCol + 3) * TILE && t.y === hollowRow * TILE));
-    // Chamber walls and floor (5 tiles wide, 4 tiles below)
-    let chamberRow = hollowRow + 4;
-    for (let c = -1; c <= 5; c++) {
-      tiles.push({ x: (hollowCol + c) * TILE, y: chamberRow * TILE, w: TILE, h: TILE, type: 'dirt' }); // floor
-    }
-    for (let r = 1; r <= 4; r++) {
-      tiles.push({ x: (hollowCol - 1) * TILE, y: (hollowRow + r) * TILE, w: TILE, h: TILE, type: 'dirt' }); // left wall
-      tiles.push({ x: (hollowCol + 5) * TILE, y: (hollowRow + r) * TILE, w: TILE, h: TILE, type: 'dirt' }); // right wall
-    }
-    // Bioluminescent mushroom decorations inside
-    for (let m = 0; m < 4; m++) {
-      decorations.push({
-        x: (hollowCol + m + 0.5) * TILE, y: chamberRow * TILE - 8,
-        type: 'glowFlower',
-        color: ['#44ffcc', '#88eeff', '#cc88ff', '#44ff88'][m],
-        phase: m * Math.PI / 2,
-      });
-    }
-    // 8 gems inside the hollow
-    for (let g = 0; g < 8; g++) {
-      collectibles.push({
-        x: (hollowCol + (g % 4)) * TILE + 10,
-        y: (chamberRow - 1) * TILE + (g < 4 ? 4 : 18),
-        w: 12, h: 16, type: 'gem', alive: true,
-      });
-    }
-    // Heart in the center
-    collectibles.push({
-      x: (hollowCol + 2) * TILE, y: (chamberRow - 1) * TILE,
-      w: 16, h: 16, type: 'heart', alive: true,
-    });
-    // Exit: leaf bounce pad back up (on the floor of chamber)
-    tiles.push({
-      x: (hollowCol + 3) * TILE, y: (chamberRow - 1) * TILE, w: TILE, h: TILE / 2,
-      type: 'leaf_bounce', bounceAnim: 0,
-    });
-    // Fireflies inside for atmosphere
-    for (let f = 0; f < 5; f++) {
-      decorations.push({
-        x: (hollowCol + f) * TILE + Math.random() * 16,
-        y: (hollowRow + 2) * TILE + Math.random() * 32,
-        type: 'firefly', phase: Math.random() * Math.PI * 2,
-      });
-    }
-  }
+  // (Tree hollow removed — was trapping players)
 
   // --- Vertical bounce loop section (around 40% of level) ---
   let bounceLoopIdx = Math.floor(branchPlatforms.length * 0.4);
