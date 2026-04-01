@@ -300,6 +300,20 @@ function playSound(type) {
     osc.frequency.setValueAtTime(1047, t + 0.45);
     gain.gain.setValueAtTime(0.12, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
     osc.start(t); osc.stop(t + 0.65);
+  } else if (type === 'swing') {
+    // Whoosh sound for sword swings
+    osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+    gain.gain.setValueAtTime(0.06, t); gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    osc.start(t); osc.stop(t + 0.1);
+    // Add a noise-like component with a second oscillator
+    let osc2 = audioCtx.createOscillator();
+    let gain2 = audioCtx.createGain();
+    osc2.connect(gain2); gain2.connect(audioCtx.destination);
+    osc2.type = 'sawtooth'; osc2.frequency.setValueAtTime(400, t);
+    osc2.frequency.exponentialRampToValueAtTime(100, t + 0.06);
+    gain2.gain.setValueAtTime(0.04, t); gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    osc2.start(t); osc2.stop(t + 0.08);
   }
 }
 
@@ -5850,6 +5864,19 @@ function update() {
   } else {
     styleMeter = Math.max(0, styleMeter - 1);
   }
+  // Style buff: when meter is full, player gets temporary speed + damage boost
+  if (styleMeter >= 100 && !player.styleBuff) {
+    player.styleBuff = true;
+    player.styleBuffTimer = 300; // 5 seconds at 60fps
+    spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ffdd00', 20, 8);
+  }
+  if (player.styleBuff) {
+    player.styleBuffTimer--;
+    if (player.styleBuffTimer <= 0 || styleMeter < 50) {
+      player.styleBuff = false;
+      player.styleBuffTimer = 0;
+    }
+  }
 
   // --- Player movement ---
   let moveX = 0;
@@ -6033,15 +6060,15 @@ function update() {
     // Plunge landing on ground — shockwave
     if (player.grounded && !player.plungeHit) {
       player.plunging = false;
-      shakeTimer = 6;
-      spawnParticles(player.x + player.w / 2, player.y + player.h, '#aa8855', 12, 6);
-      // Damage nearby grounded enemies
+      shakeTimer = 10;
+      spawnParticles(player.x + player.w / 2, player.y + player.h, '#aa8855', 18, 8);
+      // Damage nearby grounded enemies — shockwave deals 2 damage
       for (const e of enemies) {
         if (!e.alive || e.hurtTimer > 0) continue;
         if (e.type === 'knight' && e.invulnTimer > 0) continue; // knight invulnerability
         let dist = Math.abs((e.x + e.w/2) - (player.x + player.w/2));
         if (dist < 80 && Math.abs(e.y - player.y) < 20) {
-          e.hp--;
+          e.hp -= 2;
           if (e.type === 'knight') e.invulnTimer = 60;
           e.hurtTimer = 15;
           e.vy = -4;
@@ -6072,6 +6099,7 @@ function update() {
       player.attackTimer = 18;
       player.attackCooldown = 30;
       player.charging = true;
+      playSound('swing');
       playSound('attack');
       shakeTimer = 4;
       spawnParticles(player.x + player.w / 2 + player.facing * 20, player.y + player.h / 2, '#ffaa00', 12, 7);
@@ -6093,6 +6121,7 @@ function update() {
       player.charging = false;
       player.comboCount++;
       player.comboResetTimer = 30;
+      playSound('swing');
       playSound('attack');
       spawnParticles(player.x + player.w / 2 + player.facing * 20, player.y + player.h / 2, '#ffdd44', 6, 4);
       // Update combo display
@@ -6144,7 +6173,7 @@ function update() {
     if (!player.attacking || canDashCancel) {
       player.dodging = true;
       player.dodgeTimer = 10;
-      player.dodgeCooldown = 40;
+      player.dodgeCooldown = 30;
       player.invincible = 12;
       // Apply dodge speed in facing direction
       let dodgeSpeed = 6.5; // typical dodge speed
@@ -6156,13 +6185,13 @@ function update() {
     }
   }
 
-  // Block / Shield (C or L key) — first 5 frames = parry window
+  // Block / Shield (C or L key) — first 8 frames = parry window
   if ((keys['KeyC'] || keys['KeyL']) && !player.blocking && player.blockCooldown <= 0 && !player.attacking && !player.dodging) {
     player.blocking = true;
     player.blockTimer = 45;
     player.blockCooldown = 90;
     player.invincible = 45;
-    player.parryWindow = 5; // perfect block window
+    player.parryWindow = 8; // perfect block window
     spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#44ddaa', 6, 3);
   }
 
@@ -6187,20 +6216,43 @@ function update() {
       if (!e.alive || e.hurtTimer > 0) continue;
       if (e.type === 'knight' && e.invulnTimer > 0) continue; // knight invulnerability
       if (rectOverlap(attackBox, e)) {
-        e.hp--;
+        // Shield goblin block check
+        if (e.type === 'shield' && e.shieldUp) {
+          // Blocked! Spark effect + player knockback
+          player.vx = -player.facing * 5;
+          shakeTimer = 4;
+          playSound('hit');
+          spawnParticles(e.x + (e.facing < 0 ? 0 : e.w), e.y + e.h/2, '#ffff44', 10, 5);
+          spawnParticles(e.x + (e.facing < 0 ? 0 : e.w), e.y + e.h/2, '#ffffff', 6, 3);
+          hitStop = 5;
+          e.hurtTimer = 8; // brief stagger but no damage
+          continue;
+        }
+        // Heavy attacks deal 2 damage, light attacks deal 1
+        if (player.charging) {
+          e.hp -= 2;
+          e.vx = player.facing * 8;
+          e.vy = -5;
+          shakeTimer = 8;
+          hitStop = 10;
+        } else {
+          e.hp--;
+          e.vx = player.facing * 6;
+          e.vy = -3;
+          shakeTimer = 5;
+          // 3-frame hit freeze for light attacks too
+          hitStop = Math.max(hitStop || 0, 3);
+        }
         if (e.type === 'knight') e.invulnTimer = 60;
         e.hurtTimer = 15;
-        e.vx = player.facing * 4;
-        e.vy = -3;
         player.combo++;
         player.comboTimer = 90;
-        shakeTimer = 5;
         playSound('hit');
         spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ff4444', 8, 5);
         triggerCombatEffects(e, e.x + e.w/2, e.y + e.h/2);
 
         if (e.hp <= 0) {
-          let killPts = e.type === 'knight' ? 500 : 100 * Math.max(1, player.combo);
+          let killPts = (e.type === 'knight' ? 500 : 100) * Math.max(1, player.combo) * (styleMeter >= 100 ? 2 : 1);
           score += killPts;
           playSound('kill');
           let pCount = e.type === 'knight' ? 30 : 15;
@@ -12398,6 +12450,11 @@ function draw() {
         ctx.globalAlpha = 0.15;
         ctx.fillRect(kx - e.facing * 40, ky + 10, 20, 20);
         ctx.restore();
+        // Dust trail particles during charge
+        if (frameCount % 3 === 0) {
+          spawnParticles(kx + e.w/2 - e.facing * 15, ky + e.h, '#aa8866', 3, 3);
+          spawnParticles(kx + e.w/2 - e.facing * 10, ky + e.h - 2, '#887755', 2, 2);
+        }
       }
       // Telegraph exclamation mark icon
       if (e.telegraphTimer !== undefined && e.telegraphTimer > 0) {
