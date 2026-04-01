@@ -10765,8 +10765,8 @@ function drawDecorations() {
       ctx.fillText(d.text2, sx + 32, baseY - 39);
       ctx.textAlign = 'left';
     } else if (d.type === 'goblin_hut') {
-      let hx2 = d.x - camX;
-      let hy2 = d.y - camY;
+      let hx2 = d.x - camera.x;
+      let hy2 = d.y - camera.y;
       let hs = d.size || 1;
       // Hut body (brown wood)
       ctx.fillStyle = '#6B4226';
@@ -10783,8 +10783,8 @@ function drawDecorations() {
       ctx.fillStyle = '#3a2a1a';
       ctx.fillRect(hx2 + 12 * hs, hy2 - 18 * hs, 12 * hs, 18 * hs);
     } else if (d.type === 'skull_stick') {
-      let sx2 = d.x - camX;
-      let sy2 = d.y - camY;
+      let sx2 = d.x - camera.x;
+      let sy2 = d.y - camera.y;
       // Stick
       ctx.fillStyle = '#5a4a3a';
       ctx.fillRect(sx2 + 4, sy2 - 32, 3, 32);
@@ -11005,8 +11005,8 @@ function drawDecorations() {
         }
       }
       if (inVista) {
-        let bx = d.x + Math.sin(frameCount * 0.01 + d.phase) * 60 * d.dir - camX;
-        let by = d.y + Math.sin(frameCount * 0.008 + d.phase) * 20 - camY;
+        let bx = d.x + Math.sin(frameCount * 0.01 + d.phase) * 60 * d.dir - camera.x;
+        let by = d.y + Math.sin(frameCount * 0.008 + d.phase) * 20 - camera.y;
         ctx.save();
         ctx.globalAlpha = vistaFade * 0.5;
         ctx.fillStyle = '#2c3e50';
@@ -12479,7 +12479,7 @@ function draw() {
   // --- Vista zone (cloud break) sky rendering ---
   for (const h of hazards) {
     if (h.type !== 'vista_zone' || h.fadeIn <= 0) continue;
-    let vx = h.x - camX;
+    let vx = h.x - camera.x;
     ctx.save();
     ctx.globalAlpha = h.fadeIn * 0.6;
     // Bright sky gradient replacing dark canopy
@@ -12737,8 +12737,8 @@ function draw() {
   for (const h of hazards) {
     if (h.type !== 'falling_debris') continue;
     if (!h.fallen || h.falling) {
-      let dx2 = h.x - camX;
-      let dy2 = h.y - camY;
+      let dx2 = h.x - camera.x;
+      let dy2 = h.y - camera.y;
       if (h.falling && !h.fallen) {
         dx2 += (Math.random() - 0.5) * h.shakeAmount * 2;
       }
@@ -12750,7 +12750,7 @@ function draw() {
       if (h.falling && !h.fallen) {
         ctx.globalAlpha = 0.3;
         ctx.fillStyle = '#000000';
-        ctx.fillRect(dx2 - 2, h.targetY - camY, TILE, 4);
+        ctx.fillRect(dx2 - 2, h.targetY - camera.y, TILE, 4);
         ctx.globalAlpha = 1;
       }
     }
