@@ -2584,6 +2584,16 @@ let enemies = [];
 let collectibles = [];
 let hazards = [];
 let exitPortal = null;
+let prisoners = [];
+let ziplines = [];
+let catapults = [];
+let watchtowerPlatforms = [];
+let oilPuddles = [];
+let sleepingGoblins = [];
+let drummers = [];
+let feasts = [];
+let phase2Triggered = false;
+let warChiefPhase2Platform = null;
 
 // ---- WEATHER INITIALIZATION ----
 function initWeather() {
@@ -2615,6 +2625,16 @@ function generateLevel() {
   projectiles = [];
   crackWallHits = {}; // track hits on cracked walls {tileIndex: hitCount}
   throneRoomTorches.length = 0; // reset Level 5 torches
+  prisoners = [];
+  ziplines = [];
+  catapults = [];
+  watchtowerPlatforms = [];
+  oilPuddles = [];
+  sleepingGoblins = [];
+  drummers = [];
+  feasts = [];
+  phase2Triggered = false;
+  warChiefPhase2Platform = null;
   // Set level length — all main levels are long, tutorial stays shorter
   if (currentLevel === 0) {
     COLS = Math.ceil(BASE_W / TILE) + 120; // tutorial stays shorter
@@ -4937,6 +4957,16 @@ function generateLevel4() {
     }
   }
 
+  // FEATURE 1: Explosive Barrels (2 in Zone 1 near goblin patrols)
+  hazards.push({
+    type: 'barrel', x: 8 * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+  hazards.push({
+    type: 'barrel', x: 22 * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+
   // Checkpoint at end of Zone 1
   checkpoint = {
     x: (zone1End - 3) * TILE, y: groundY * TILE - 28,
@@ -5021,6 +5051,30 @@ function generateLevel4() {
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
+
+  // FEATURE 12: Watchtower in Zone 2 (near outer wall)
+  let watchtowerCol = wallCol - 8;
+  for (let wt = 0; wt < 8; wt++) {
+    watchtowerPlatforms.push({
+      x: watchtowerCol * TILE, y: (groundY - 2 - wt) * TILE,
+      w: TILE, h: TILE, platform: wt,
+    });
+    tiles.push({
+      x: watchtowerCol * TILE, y: (groundY - 2 - wt) * TILE,
+      w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
+    });
+    // Add gems on watchtower platforms
+    if (wt % 2 === 0 && wt > 0) {
+      collectibles.push({
+        x: watchtowerCol * TILE + 10, y: (groundY - 2 - wt) * TILE - 8,
+        w: 12, h: 16, type: 'gem', alive: true,
+      });
+    }
+  }
+  decorations.push({
+    x: watchtowerCol * TILE + TILE / 2, y: groundY * TILE - 30,
+    type: 'tutSign', text1: 'SCOUT', text2: 'TOWER',
+  });
 
   // --- ZONE 3: CAMP GROUNDS (cols ~98 to ~195, 25-50%) ---
   let zone3Start = zone2End;
@@ -5127,16 +5181,74 @@ function generateLevel4() {
     });
   }
 
-  // Caged area: 3x2 dirt box with opening and torch inside
+  // FEATURE 10: Feast table (near col 145)
+  feasts.push({
+    x: 145 * TILE, y: (groundY - 1) * TILE, w: 4 * TILE, h: TILE,
+    tipped: false, tipTimer: 0, platformCreated: false,
+  });
+
+  // FEATURE 2: Oil puddles (4-5 near campfires in Zones 1 and 3)
+  oilPuddles.push({
+    x: 120 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
+    ignited: false, fireTimer: 0,
+  });
+  oilPuddles.push({
+    x: 145 * TILE + 8, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
+    ignited: false, fireTimer: 0,
+  });
+  oilPuddles.push({
+    x: 170 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
+    ignited: false, fireTimer: 0,
+  });
+  oilPuddles.push({
+    x: 8 * TILE, y: (groundY) * TILE - 2, w: TILE * 2, h: 4,
+    ignited: false, fireTimer: 0,
+  });
+
+  // FEATURE 1: Barrels (3 in Zone 3 near huts/campfires)
+  hazards.push({
+    type: 'barrel', x: 118 * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+  hazards.push({
+    type: 'barrel', x: 148 * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+  hazards.push({
+    type: 'barrel', x: 168 * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+
+  // FEATURE 3: Sleeping Goblins (4 in Zone 3 near huts, cols ~100-195)
+  let sleepPositions = [105, 125, 150, 175];
+  for (let sp of sleepPositions) {
+    sleepingGoblins.push({
+      x: sp * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+      sleeping: true, wakeRadius: 4 * TILE, awoken: false,
+    });
+  }
+  // Add sign before sleeping area
+  decorations.push({
+    x: 100 * TILE, y: groundY * TILE, type: 'tutSign',
+    text1: 'QUIET...', text2: 'LIGHT SLEEP',
+  });
+
+  // FEATURE 4: Freeable Prisoner (in Zone 3 at col 175)
   let cageCol = 175;
   let cageRow = groundY;
+  // Cage walls as crate tiles (hp:2)
   for (let r = 0; r < 2; r++) {
-    tiles.push({ x: (cageCol - 1) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    tiles.push({ x: (cageCol + 2) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (cageCol - 1) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
+    tiles.push({ x: (cageCol + 2) * TILE, y: (cageRow - r) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
   }
   for (let c = 0; c < 2; c++) {
-    tiles.push({ x: (cageCol + c) * TILE, y: (cageRow - 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: (cageCol + c) * TILE, y: (cageRow - 1) * TILE, w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2 });
   }
+  // Prisoner inside cage
+  prisoners.push({
+    x: cageCol * TILE + 6, y: (groundY - 1) * TILE, w: 20, h: 28,
+    freed: false, type: 'prisoner', bounceOffset: 0,
+  });
   decorations.push({ x: cageCol * TILE + TILE / 2, y: (cageRow - 1) * TILE + 4, type: 'torch' });
 
   // Checkpoint2 in middle of Zone 3
@@ -5413,6 +5525,72 @@ function generateLevel4() {
   // Banner decorations (war chief theme)
   decorations.push({ x: (keepCol - 2) * TILE, y: (groundY - 8) * TILE, type: 'tutSign', text1: 'WAR', text2: 'CHIEF' });
 
+  // FEATURE 5: Zip Lines in Zone 5 (2 lines for quick descent)
+  // Zipline 1: Third floor to second floor
+  ziplines.push({
+    x1: (thirdFloorStart + 2) * TILE + TILE/2, y1: (groundY - 6) * TILE,
+    x2: (secondFloorStart + 7) * TILE + TILE/2, y2: (groundY - 3) * TILE,
+    w: 8, h: 8, active: true,
+  });
+  // Zipline 2: Second floor to ground floor
+  ziplines.push({
+    x1: (secondFloorStart + 7) * TILE + TILE/2, y1: (groundY - 3) * TILE,
+    x2: (zone5End - 3) * TILE + TILE/2, y2: (groundY - 1) * TILE,
+    w: 8, h: 8, active: true,
+  });
+
+  // FEATURE 9: Hidden Armory (fake wall with flaming sword)
+  let armoryCol = zone5Start + 10;
+  // Fake wall (looks like dirt with crack)
+  tiles.push({
+    x: armoryCol * TILE, y: (groundY - 4) * TILE,
+    w: TILE, h: TILE, type: 'dirt', isFakeWall: true,
+  });
+  // Behind wall: ground floor for room
+  tiles.push({
+    x: armoryCol * TILE, y: (groundY - 1) * TILE,
+    w: TILE, h: TILE, type: 'ground',
+  });
+  // Flaming sword pickup in armory
+  collectibles.push({
+    x: armoryCol * TILE + 6, y: (groundY - 2) * TILE,
+    w: 12, h: 16, type: 'flaming_sword', alive: true,
+  });
+  // Hint: torch that flickers differently near fake wall
+  decorations.push({
+    x: (armoryCol - 1) * TILE + TILE / 2, y: (groundY - 4) * TILE - 4,
+    type: 'torch', isHint: true,
+  });
+
+  // FEATURE 4: Second Prisoner Cage (in Zone 5 behind crate wall)
+  let prisonCol = zone5Start + 20;
+  // Cage walls as crate tiles (hp:2)
+  for (let r = 0; r < 2; r++) {
+    tiles.push({
+      x: (prisonCol - 1) * TILE, y: (groundY - 1 - r) * TILE,
+      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
+    });
+    tiles.push({
+      x: (prisonCol + 2) * TILE, y: (groundY - 1 - r) * TILE,
+      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
+    });
+  }
+  for (let c = 0; c < 2; c++) {
+    tiles.push({
+      x: (prisonCol + c) * TILE, y: (groundY - 1) * TILE,
+      w: TILE, h: TILE, type: 'crate', hp: 2, maxHp: 2,
+    });
+  }
+  // Second prisoner
+  prisoners.push({
+    x: prisonCol * TILE + 6, y: (groundY - 1) * TILE, w: 20, h: 28,
+    freed: false, type: 'prisoner', bounceOffset: 0,
+  });
+  decorations.push({
+    x: prisonCol * TILE + TILE / 2, y: (groundY - 1) * TILE + 4,
+    type: 'torch',
+  });
+
   // Checkpoint2 before boss arena
   hazards.push({
     type: 'checkpoint2',
@@ -5434,17 +5612,42 @@ function generateLevel4() {
     });
   }
 
-  // Wooden fence walls on edges (dirt, 2 high)
+  // FEATURE 7: Destructible Arena Walls (change to crate tiles hp:4)
   for (let row = 0; row < 2; row++) {
     tiles.push({
       x: (zone6Start - 2) * TILE, y: (groundY - row) * TILE,
-      w: TILE, h: TILE, type: 'dirt',
+      w: TILE, h: TILE, type: 'crate', hp: 4, maxHp: 4,
     });
     tiles.push({
       x: (bossArenaEnd - 1) * TILE, y: (groundY - row) * TILE,
-      w: TILE, h: TILE, type: 'dirt',
+      w: TILE, h: TILE, type: 'crate', hp: 4, maxHp: 4,
     });
   }
+  // Ground behind walls for alcoves
+  tiles.push({
+    x: (zone6Start - 2) * TILE, y: (groundY - 1) * TILE + TILE,
+    w: TILE, h: TILE, type: 'ground',
+  });
+  tiles.push({
+    x: (bossArenaEnd - 1) * TILE, y: (groundY - 1) * TILE + TILE,
+    w: TILE, h: TILE, type: 'ground',
+  });
+  // Gems in alcoves behind walls
+  collectibles.push({
+    x: (zone6Start - 2) * TILE + 10, y: (groundY) * TILE + 4,
+    w: 12, h: 16, type: 'gem', alive: true,
+  });
+  collectibles.push({
+    x: (bossArenaEnd - 1) * TILE + 10, y: (groundY) * TILE + 4,
+    w: 12, h: 16, type: 'gem', alive: true,
+  });
+
+  // FEATURE 6: War Chief Phase 2 Platform (elevated platform at center)
+  warChiefPhase2Platform = {
+    x: (zone6Start + 8) * TILE, y: (groundY - 4) * TILE,
+    w: 4 * TILE, h: TILE, active: false,
+  };
+  // Add platform tiles (will be drawn dynamically)
 
   // War Chief boss
   let bossX = (zone6Start + 5) * TILE;
@@ -5459,6 +5662,50 @@ function generateLevel4() {
     chargeSpeed: 0, charging: false,
     slamCooldown: 0, rallyCooldown: 0,
     enraged: false,
+    phase2: false, boulderCooldown: 0,
+  });
+
+  // FEATURE 11: Catapult (in center-right of arena)
+  catapults.push({
+    x: (zone6Start + 12) * TILE, y: (groundY - 1) * TILE,
+    w: 2 * TILE, h: TILE, cooldown: 0, maxCooldown: 120,
+  });
+
+  // FEATURE 1: Barrels in Zone 6 (2-3 near boss arena)
+  hazards.push({
+    type: 'barrel', x: (zone6Start + 2) * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+  hazards.push({
+    type: 'barrel', x: (zone6Start + 15) * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+  hazards.push({
+    type: 'barrel', x: (bossArenaEnd - 5) * TILE, y: (groundY - 1) * TILE - 8,
+    w: 16, h: 20, hp: 1, maxHp: 1, exploded: false,
+  });
+
+  // FEATURE 8: Goblin Drummers (2 on elevated platforms)
+  enemies.push({
+    x: (zone6Start + 3) * TILE, y: (groundY - 3) * TILE, w: 20, h: 28,
+    vx: 0, vy: 0, type: 'drummer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0, patrolOrigin: (zone6Start + 3) * TILE, patrolRange: 0,
+    animFrame: 0, drumAnimation: 0,
+  });
+  enemies.push({
+    x: (bossArenaEnd - 4) * TILE, y: (groundY - 3) * TILE, w: 20, h: 28,
+    vx: 0, vy: 0, type: 'drummer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: -1, attackCooldown: 0, patrolOrigin: (bossArenaEnd - 4) * TILE, patrolRange: 0,
+    animFrame: 0, drumAnimation: 0,
+  });
+  // Drummer platforms
+  tiles.push({
+    x: (zone6Start + 3) * TILE, y: (groundY - 2) * TILE,
+    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
+  });
+  tiles.push({
+    x: (bossArenaEnd - 4) * TILE, y: (groundY - 2) * TILE,
+    w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: 1,
   });
 
   // Exit portal (hidden until boss dies)
@@ -5521,6 +5768,11 @@ function resetPlayer() {
     wallSliding: false, // is player sliding on a wall
     wallDir: 0, // -1 for left wall, 1 for right wall
     wallJumpCooldown: 0, // frames of cooldown after wall jump
+    // Level 4 mechanics
+    onZipline: false,
+    ziplineObj: null,
+    flamingSword: false,
+    flamingSwordTimer: 0,
   };
   // Apply stat bonuses from leveling
   let save = loadSave();
@@ -5551,6 +5803,7 @@ function resolveCollision(entity, isEnemy) {
   entity.grounded = false;
   for (const t of tiles) {
     if (t.collapsed) continue;
+    if (t.isFakeWall) continue; // Skip fake walls (armory entrance)
     if (!rectOverlap(entity, t)) continue;
 
     let overlapX = Math.min(entity.x + entity.w - t.x, t.x + t.w - entity.x);
@@ -7131,20 +7384,27 @@ function update() {
           e.hurtTimer = 8; // brief stagger but no damage
           continue;
         }
-        // Heavy attacks deal 2 damage, light attacks deal 1
+        // Heavy attacks deal 2 damage, light attacks deal 1 (doubled with flaming sword)
+        let damageMultiplier = player.flamingSword ? 2 : 1;
         if (player.charging) {
-          e.hp -= 2;
+          e.hp -= 2 * damageMultiplier;
           e.vx = player.facing * 8;
           e.vy = -5;
           shakeTimer = 8;
           hitStop = 10;
+          if (player.flamingSword) {
+            spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ff6600', 6, 4);
+          }
         } else {
-          e.hp--;
+          e.hp -= 1 * damageMultiplier;
           e.vx = player.facing * 6;
           e.vy = -3;
           shakeTimer = 5;
           // 3-frame hit freeze for light attacks too
           hitStop = Math.max(hitStop || 0, 3);
+          if (player.flamingSword) {
+            spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ffaa00', 4, 3);
+          }
         }
         if (e.type === 'knight') e.invulnTimer = 60;
         e.hurtTimer = 15;
@@ -7853,7 +8113,19 @@ function update() {
         shakeTimer = 12;
       }
 
-      let speedMult = e.enraged ? 1.5 : 1.0;
+      // Phase 2: Add platform tiles when phase2 is triggered
+      if (e.phase2 && warChiefPhase2Platform && !warChiefPhase2Platform.active) {
+        warChiefPhase2Platform.active = true;
+        // Create the platform tiles
+        for (let c = 0; c < 4; c++) {
+          tiles.push({
+            x: warChiefPhase2Platform.x + c * TILE, y: warChiefPhase2Platform.y,
+            w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 3, logLen: 4,
+          });
+        }
+      }
+
+      let speedMult = (e.enraged ? 1.5 : 1.0) * (e.speedBuff || 1);
       e.phaseTimer--;
 
       if (e.phase === 'idle') {
@@ -8541,6 +8813,48 @@ function update() {
     }
   }
 
+  // --- Boulder projectiles (War Chief Phase 2) ---
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    let p = projectiles[i];
+    if (p.type !== 'boulder') continue;
+    p.vy += 0.4; // gravity on boulders
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+    if (p.life <= 0) { projectiles.splice(i, 1); continue; }
+    // Check if boulder hit ground/tiles
+    let hitGround = false;
+    for (const t of tiles) {
+      if (rectOverlap(p, t)) { hitGround = true; break; }
+    }
+    if (hitGround) {
+      spawnParticles(p.x, p.y, '#555555', 12, 5);
+      projectiles.splice(i, 1);
+      continue;
+    }
+    // Check if boulder hit player
+    if (rectOverlap(p, player) && player.invincible <= 0) {
+      if (player.blocking) {
+        // Blocked by shield
+        p.vx = -p.vx * 1.5;
+        p.vy = -5;
+        playSound('hit');
+        spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ffffff', 10, 5);
+      } else if (!player.dodging) {
+        player.hp -= p.damage || 2;
+        damageTaken = true;
+        player.invincible = 45;
+        player.vy = -5;
+        player.vx = Math.sign(p.vx) * 5;
+        shakeTimer = 8;
+        damageFlash = 0.4;
+        playSound('hurt');
+        spawnParticles(p.x, p.y, '#888888', 12, 6);
+        projectiles.splice(i, 1);
+      }
+    }
+  }
+
   // --- Spore projectiles ---
   for (let i = projectiles.length - 1; i >= 0; i--) {
     let p = projectiles[i];
@@ -8628,6 +8942,13 @@ function update() {
         spawnCollectionBurst(c.x, c.y, '#ff4466', 8);
         // Spawn health glow (optional ambient effect)
         spawnHealthGlow(c.x, c.y);
+      } else if (c.type === 'flaming_sword') {
+        player.flamingSword = true;
+        player.flamingSwordTimer = 600; // 10 seconds
+        playSound('gem');
+        spawnParticles(c.x, c.y, '#ff6600', 12, 6);
+        spawnParticles(c.x, c.y, '#ffaa00', 8, 4);
+        scorePopups.push({ x: c.x, y: c.y - 30, text: 'FLAMING SWORD!', life: 80 });
       }
     }
   }
@@ -9232,6 +9553,335 @@ function update() {
       playSound('checkpoint');
       spawnParticles(h.x + TILE / 2, h.y, '#ffaa22', 15, 6);
       scorePopups.push({ x: h.x + TILE / 2, y: h.y - 20, text: 'CHECKPOINT', life: 60 });
+    }
+  }
+
+  // FEATURE 1: Explosive Barrels update
+  for (const h of hazards) {
+    if (h.type !== 'barrel') continue;
+    if (h.exploded) continue;
+
+    // Explode if player attacks nearby or arrow hits
+    let shouldExplode = false;
+
+    // Check player attack hit
+    if (player.attacking && rectOverlap(player, { x: h.x - 8, y: h.y - 8, w: h.w + 16, h: h.h + 16 })) {
+      shouldExplode = true;
+    }
+
+    // Check arrow hits
+    for (const proj of projectiles) {
+      if (proj.type === 'arrow' && rectOverlap(proj, h)) {
+        shouldExplode = true;
+        break;
+      }
+    }
+
+    if (shouldExplode) {
+      h.exploded = true;
+      shakeTimer = 20;
+      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ff6600', 20, 6);
+      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ffaa00', 15, 5);
+      spawnParticles(h.x + h.w/2, h.y + h.h/2, '#ffddaa', 10, 3);
+      playSound('hit');
+
+      // Deal damage to enemies within 3 tiles (96px)
+      let explosionDist = 3 * TILE;
+      for (const e of enemies) {
+        if (e.alive) {
+          let dist = Math.hypot(e.x - h.x, e.y - h.y);
+          if (dist < explosionDist) {
+            e.hp -= 2;
+            if (e.hp <= 0) e.alive = false;
+            e.vx = (e.x - h.x) > 0 ? 4 : -4;
+            e.vy = -3;
+          }
+        }
+      }
+
+      // Chain react with other barrels within 3 tiles
+      for (const h2 of hazards) {
+        if (h2.type === 'barrel' && !h2.exploded) {
+          let dist = Math.hypot(h2.x - h.x, h2.y - h.y);
+          if (dist < explosionDist) {
+            h2.exploded = true;
+            spawnParticles(h2.x + h2.w/2, h2.y + h2.h/2, '#ff6600', 15, 5);
+          }
+        }
+      }
+
+      // Ignite nearby oil puddles
+      for (const op of oilPuddles) {
+        let dist = Math.hypot(op.x - h.x, op.y - h.y);
+        if (dist < explosionDist) {
+          op.ignited = true;
+        }
+      }
+    }
+  }
+
+  // FEATURE 2: Oil Puddles + Fire update
+  for (const op of oilPuddles) {
+    if (op.ignited) {
+      op.fireTimer++;
+      if (op.fireTimer >= 300) {
+        op.ignited = false;
+        op.fireTimer = 0;
+      }
+
+      // Damage player in fire puddle
+      if (rectOverlap(player, { x: op.x, y: op.y, w: op.w, h: op.h }) && player.invincible <= 0) {
+        player.hp--;
+        player.invincible = 30;
+        spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ff6600', 8, 3);
+      }
+
+      // Damage enemies in fire
+      for (const e of enemies) {
+        if (e.alive && rectOverlap(e, { x: op.x, y: op.y, w: op.w, h: op.h }) && !e.fireImmune) {
+          e.hp -= 1;
+          if (e.hp <= 0) e.alive = false;
+          e.fireImmune = true;
+          e.fireImmuneTimer = 30;
+          spawnParticles(e.x + e.w/2, e.y + e.h/2, '#ff6600', 6, 2);
+        }
+      }
+    }
+
+    // Reduce fire immunity timers
+    for (const e of enemies) {
+      if (e.fireImmuneTimer && e.fireImmuneTimer > 0) e.fireImmuneTimer--;
+      if (e.fireImmuneTimer === 0) e.fireImmune = false;
+    }
+  }
+
+  // FEATURE 3: Sleeping Goblins wake detection
+  for (const sg of sleepingGoblins) {
+    if (sg.awoken) continue;
+
+    // Check if player is within wake radius
+    let distToPlayer = Math.hypot(player.x - sg.x, player.y - sg.y);
+    let playerAttackNearby = player.attacking && distToPlayer < sg.wakeRadius + 50;
+
+    if (distToPlayer < sg.wakeRadius || playerAttackNearby) {
+      // Wake all sleeping goblins
+      for (const sg2 of sleepingGoblins) {
+        sg2.awoken = true;
+        // Convert to regular enemy
+        enemies.push({
+          x: sg2.x, y: sg2.y, w: sg2.w, h: sg2.h,
+          vx: Math.random() < 0.5 ? 1 : -1, vy: 0,
+          type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+          facing: Math.random() < 0.5 ? 1 : -1, attackCooldown: 0,
+          patrolOrigin: sg2.x, patrolRange: 8 * TILE,
+          animFrame: Math.random() * 100 | 0, aggro: true,
+        });
+      }
+      scorePopups.push({ x: player.x, y: player.y - 40, text: 'GOBLINS AWOKEN!', life: 60 });
+      break;
+    }
+  }
+
+  // FEATURE 4: Freeable Prisoners update
+  for (const p of prisoners) {
+    if (p.freed) continue;
+
+    // Check if cage walls are broken (all adjacent walls destroyed)
+    let allWallsDestroyed = true;
+    for (const t of tiles) {
+      if ((t.type === 'crate' || t.type === 'dirt') &&
+          Math.abs(t.x - p.x) < TILE * 2 && Math.abs(t.y - p.y) < TILE * 3) {
+        if (t.hp !== undefined && t.hp > 0) {
+          allWallsDestroyed = false;
+          break;
+        }
+      }
+    }
+
+    if (allWallsDestroyed) {
+      p.freed = true;
+      // Spawn rewards
+      collectibles.push({ x: p.x, y: p.y - 20, w: 16, h: 16, type: 'heart', alive: true });
+      for (let i = 0; i < 5; i++) {
+        collectibles.push({
+          x: p.x + (Math.random() - 0.5) * 30, y: p.y - 30,
+          w: 12, h: 16, type: 'gem', alive: true,
+        });
+      }
+      scorePopups.push({ x: p.x, y: p.y - 40, text: 'FREED!', life: 60 });
+      playSound('gem');
+    }
+
+    // Bounce animation
+    p.bounceOffset = Math.sin(frameCount * 0.08) * 2;
+  }
+
+  // FEATURE 5: Zip Lines update
+  for (const zl of ziplines) {
+    // Check if player is jumping near zipline
+    if (!player.onZipline && !player.grounded && player.vy >= -2) {
+      let playerBox = { x: player.x, y: player.y, w: player.w, h: player.h };
+      // Expand hitbox for easy attachment
+      let zlBox = { x: Math.min(zl.x1, zl.x2) - 20, y: Math.min(zl.y1, zl.y2) - 20,
+                    w: Math.abs(zl.x2 - zl.x1) + 40, h: Math.abs(zl.y2 - zl.y1) + 40 };
+      if (rectOverlap(playerBox, zlBox)) {
+        player.onZipline = true;
+        player.ziplineObj = zl;
+        player.vy = 0;
+        // Position on zipline
+        let t = 0;
+        player.x = zl.x1 + (zl.x2 - zl.x1) * t - player.w/2;
+        player.y = zl.y1 + (zl.y2 - zl.y1) * t - player.h/2;
+      }
+    }
+
+    // If on zipline, move along it
+    if (player.onZipline && player.ziplineObj === zl) {
+      let dx = zl.x2 - zl.x1;
+      let dy = zl.y2 - zl.y1;
+      let len = Math.sqrt(dx*dx + dy*dy);
+      dx /= len;
+      dy /= len;
+
+      player.x += dx * 5;
+      player.y += dy * 5;
+
+      // Check if reached end
+      let distToEnd = Math.hypot(player.x - zl.x2, player.y - zl.y2);
+      if (distToEnd < 20) {
+        player.onZipline = false;
+        player.ziplineObj = null;
+        player.vy = 2; // gentle drop
+      }
+
+      // Allow jump off
+      if ((keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && !player.grounded) {
+        player.onZipline = false;
+        player.ziplineObj = null;
+        player.vy = -8;
+      }
+    }
+  }
+
+  // FEATURE 6: War Chief Phase 2 Trigger
+  if (currentLevel === 4 && !phase2Triggered) {
+    let boss = null;
+    for (const e of enemies) {
+      if (e.type === 'war_chief') { boss = e; break; }
+    }
+    if (boss && boss.hp <= 2 && boss.hp > 0) {
+      phase2Triggered = true;
+      boss.phase2 = true;
+      scorePopups.push({ x: boss.x, y: boss.y - 60, text: 'ENOUGH!', life: 80 });
+      boss.x = (warChiefPhase2Platform.x + warChiefPhase2Platform.w/2) - boss.w/2;
+      boss.y = warChiefPhase2Platform.y - boss.h;
+      playSound('hit');
+    }
+  }
+
+  // Phase 2 boss boulder attack
+  for (const e of enemies) {
+    if (e.type !== 'war_chief' || !e.phase2) continue;
+    if (e.boulderCooldown > 0) e.boulderCooldown--;
+
+    // Throw boulders
+    if (e.boulderCooldown === 0 && Math.random() < 0.02) {
+      e.boulderCooldown = 60;
+      let targetX = player.x + player.w/2;
+      let dx = targetX - e.x;
+      let vy = -10 - Math.random() * 8;
+      projectiles.push({
+        x: e.x + e.w/2, y: e.y,
+        vx: (dx > 0 ? 1 : -1) * 4, vy: vy,
+        w: 12, h: 12, type: 'boulder', life: 300, fromEnemy: true,
+        damage: 2,
+      });
+    }
+  }
+
+  // FEATURE 10: Feast Table knockover
+  for (const f of feasts) {
+    if (f.tipped) {
+      f.tipTimer++;
+      if (f.tipTimer > 60 && !f.platformCreated) {
+        // Create temporary bridge platform
+        f.platformCreated = true;
+        tiles.push({
+          x: f.x, y: f.y + TILE,
+          w: 3 * TILE, h: TILE/2, type: 'log', logStart: false, logEnd: false, logLen: 3,
+        });
+        spawnParticles(f.x + f.w/2, f.y + f.h/2, '#8b4513', 12, 3);
+      }
+    } else if (player.attacking && rectOverlap(player, { x: f.x - 10, y: f.y - 10, w: f.w + 20, h: f.h + 20 })) {
+      f.tipped = true;
+      playSound('hit');
+    }
+  }
+
+  // FEATURE 11: Catapult update
+  for (const cat of catapults) {
+    if (cat.cooldown > 0) cat.cooldown--;
+
+    // Check if player on catapult and pressing down+jump
+    if (rectOverlap(player, { x: cat.x, y: cat.y - player.h, w: cat.w, h: cat.h + player.h })) {
+      if ((keys['ArrowDown'] || keys['KeyS']) && (keys['Space'] || keys['ArrowUp'] || keys['KeyW']) && cat.cooldown === 0) {
+        player.vy = -18;
+        player.grounded = false;
+        cat.cooldown = cat.maxCooldown;
+        spawnParticles(cat.x + cat.w/2, cat.y, '#8b4513', 15, 8);
+        playSound('jump');
+      }
+    }
+  }
+
+  // FEATURE 12: Watchtower Panoramic View
+  for (const wp of watchtowerPlatforms) {
+    if (wp.platform === 7 && rectOverlap(player, wp)) { // top platform
+      if (player.watchtowerTime === undefined) player.watchtowerTime = 0;
+      player.watchtowerTime++;
+      if (player.watchtowerTime >= 60) {
+        targetZoom = 0.7;
+        // Glow gems on watchtower
+        for (const c of collectibles) {
+          if (c.x >= wp.x - 3*TILE && c.x <= wp.x + TILE && c.type === 'gem') {
+            c.watchGlow = Math.min((c.watchGlow || 0) + 0.1, 1);
+          }
+        }
+        scorePopups.push({ x: player.x, y: player.y - 60, text: 'SCOUT VIEW', life: 60 });
+      }
+    } else {
+      if (player.watchtowerTime !== undefined && player.watchtowerTime > 0) {
+        targetZoom = 1.0;
+        player.watchtowerTime = 0;
+      }
+    }
+  }
+
+  // FEATURE 8: Goblin Drummers (they buff War Chief)
+  let drummersAlive = 0;
+  for (const d of drummers) {
+    if (d.hp > 0 && d.alive) {
+      drummersAlive++;
+    }
+    // Simple drum animation
+    d.drumAnimation = (d.drumAnimation || 0) + 0.15;
+  }
+  // Apply buff to War Chief if drummers alive
+  for (const e of enemies) {
+    if (e.type === 'war_chief') {
+      if (drummersAlive > 0) {
+        e.speedBuff = 1.5;
+      } else {
+        e.speedBuff = 1;
+      }
+    }
+  }
+
+  // FEATURE 9: Flaming Sword update
+  if (player.flamingSword) {
+    player.flamingSwordTimer--;
+    if (player.flamingSwordTimer <= 0) {
+      player.flamingSword = false;
     }
   }
 
@@ -13061,6 +13711,309 @@ function draw() {
     ctx.restore();
   }
 
+  // FEATURE 1: Draw Barrels
+  for (const h of hazards) {
+    if (h.type !== 'barrel') continue;
+    let bx = h.x - camera.x;
+    if (bx < -50 || bx > BASE_W + 50) continue;
+
+    ctx.save();
+    // Barrel body - brown/red
+    ctx.fillStyle = h.exploded ? '#888888' : '#8b4513';
+    ctx.beginPath();
+    ctx.ellipse(bx + h.w/2, h.y + h.h/2, h.w/2 - 2, h.h/2 - 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Barrel bands
+    ctx.strokeStyle = '#5a3a1a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(bx + h.w/2, h.y + h.h * 0.3, h.w/2 - 3, 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(bx + h.w/2, h.y + h.h * 0.7, h.w/2 - 3, 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Highlight
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(bx + h.w/2 - 3, h.y + 3, 3, 4);
+    ctx.restore();
+  }
+
+  // FEATURE 2: Draw Oil Puddles and Fire
+  for (const op of oilPuddles) {
+    let px = op.x - camera.x;
+    if (px < -50 || px > BASE_W + 50) continue;
+
+    ctx.save();
+    if (!op.ignited) {
+      // Dark oil slick
+      ctx.fillStyle = '#1a1410';
+      ctx.globalAlpha = 0.6;
+      ctx.beginPath();
+      ctx.ellipse(px + op.w/2, op.y, op.w/2, op.h, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // Animated flames
+      ctx.globalAlpha = 0.7;
+      for (let f = 0; f < 3; f++) {
+        let flameY = op.y - 4 - f * 4;
+        let flameX = px + op.w/2 + Math.sin(frameCount * 0.1 + f) * 3;
+        let flameHeight = 8 - f * 2;
+
+        // Orange/red flame
+        ctx.fillStyle = f === 0 ? '#ff4400' : '#ffaa00';
+        ctx.beginPath();
+        ctx.moveTo(flameX - 3, op.y);
+        ctx.lineTo(flameX, flameY);
+        ctx.lineTo(flameX + 3, op.y);
+        ctx.fill();
+      }
+      // Yellow center
+      ctx.fillStyle = '#ffff00';
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.ellipse(px + op.w/2, op.y - 2, 2, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // FEATURE 3: Draw Sleeping Goblins (with Zzz)
+  for (const sg of sleepingGoblins) {
+    if (sg.awoken) continue;
+    let sx = sg.x - camera.x;
+    if (sx < -40 || sx > BASE_W + 40) continue;
+
+    ctx.save();
+    // Simple sleeping goblin (green blob)
+    ctx.fillStyle = '#3a6a2a';
+    ctx.beginPath();
+    ctx.arc(sx + sg.w/2, sg.y + sg.h/2, sg.w/2, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes (closed)
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(sx + 6, sg.y + 6, 2, 1);
+    ctx.fillRect(sx + 14, sg.y + 6, 2, 1);
+    // Zzz animation
+    let zzzOffset = Math.sin(frameCount * 0.08) * 2;
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px Arial';
+    ctx.fillText('Z', sx + sg.w + 4, sg.y - 8 + zzzOffset);
+    ctx.fillText('z', sx + sg.w + 10, sg.y - 4 + zzzOffset * 0.5);
+    ctx.restore();
+  }
+
+  // FEATURE 4: Draw Prisoners
+  for (const p of prisoners) {
+    if (p.freed) continue;
+    let px = p.x - camera.x;
+    if (px < -40 || px > BASE_W + 40) continue;
+
+    ctx.save();
+    let bobY = p.y + p.bounceOffset;
+    // Simple prisoner figure
+    ctx.fillStyle = '#8b6914';  // tan/brown
+    ctx.beginPath();
+    ctx.arc(px + p.w/2, bobY + 6, 4, 0, Math.PI * 2);
+    ctx.fill();
+    // Body
+    ctx.fillRect(px + p.w/2 - 4, bobY + 10, 8, 10);
+    // Legs
+    ctx.fillRect(px + p.w/2 - 3, bobY + 20, 3, 6);
+    ctx.fillRect(px + p.w/2 + 1, bobY + 20, 3, 6);
+    // Stripes (cage)
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(px + p.w/2 - 6 + i * 3, bobY + 6);
+      ctx.lineTo(px + p.w/2 - 6 + i * 3, bobY + 24);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // FEATURE 5: Draw Ziplines
+  for (const zl of ziplines) {
+    let x1 = zl.x1 - camera.x;
+    let y1 = zl.y1;
+    let x2 = zl.x2 - camera.x;
+    let y2 = zl.y2;
+
+    if (x1 < -100 && x2 < -100) continue;
+    if (x1 > BASE_W + 100 && x2 > BASE_W + 100) continue;
+
+    ctx.save();
+    // Zipline cable
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    // Anchor points
+    ctx.fillStyle = '#666666';
+    ctx.beginPath();
+    ctx.arc(x1, y1, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x2, y2, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Decorative anchor frames
+    ctx.strokeStyle = '#444444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x1 - 6, y1 - 6, 12, 12);
+    ctx.strokeRect(x2 - 6, y2 - 6, 12, 12);
+    ctx.restore();
+  }
+
+  // FEATURE 6: Draw War Chief Phase 2 Platform
+  if (warChiefPhase2Platform && warChiefPhase2Platform.active) {
+    let px = warChiefPhase2Platform.x - camera.x;
+    let py = warChiefPhase2Platform.y;
+    if (px > -100 && px < BASE_W + 100) {
+      ctx.save();
+      // Log platform
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(px, py, warChiefPhase2Platform.w, warChiefPhase2Platform.h);
+      // Log details
+      ctx.strokeStyle = '#3a2010';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(px + i * TILE, py);
+        ctx.lineTo(px + i * TILE, py + warChiefPhase2Platform.h);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  // FEATURE 7: Destructible Wall visual (crate style)
+  for (const t of tiles) {
+    if (t.type !== 'crate') continue;
+    let tx = t.x - camera.x;
+    if (tx < -50 || tx > BASE_W + 50) continue;
+    let healthPercent = t.hp / t.maxHp;
+    // Already drawn by tile renderer, but we can add health indicator
+    if (t.hp < t.maxHp) {
+      ctx.save();
+      ctx.fillStyle = healthPercent > 0.5 ? '#ffaa00' : '#ff3333';
+      ctx.globalAlpha = 0.4;
+      ctx.fillRect(tx, t.y - 4, TILE * healthPercent, 2);
+      ctx.restore();
+    }
+  }
+
+  // FEATURE 9: Draw Flaming Sword Pickup
+  for (const c of collectibles) {
+    if (c.type !== 'flaming_sword' || !c.alive) continue;
+    let sx = c.x - camera.x;
+    if (sx < -20 || sx > BASE_W + 20) continue;
+
+    ctx.save();
+    let glow = Math.sin(frameCount * 0.08) * 0.3 + 0.7;
+    ctx.globalAlpha = glow;
+    // Sword blade (orange/red)
+    ctx.fillStyle = '#ff6600';
+    ctx.fillRect(sx, c.y - 8, 4, 12);
+    // Flame aura
+    ctx.fillStyle = '#ffaa00';
+    ctx.beginPath();
+    ctx.arc(sx + 2, c.y - 4, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffff00';
+    ctx.beginPath();
+    ctx.arc(sx + 2, c.y - 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+    // Hilt
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(sx + 1, c.y + 4, 2, 3);
+    ctx.restore();
+  }
+
+  // FEATURE 10: Draw Feast Table
+  for (const f of feasts) {
+    let fx = f.x - camera.x;
+    if (fx < -100 || fx > BASE_W + 100) continue;
+
+    ctx.save();
+    if (!f.tipped) {
+      // Table upright
+      ctx.fillStyle = '#8b6914';
+      ctx.fillRect(fx, f.y, f.w, f.h);
+      // Food items on table
+      ctx.fillStyle = '#ff6600';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.arc(fx + 10 + i * 40, f.y + f.h/2, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Table tipped
+      ctx.save();
+      ctx.translate(fx + f.w/2, f.y + f.h/2);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillStyle = '#8b6914';
+      ctx.fillRect(-f.w/2, -f.h/2, f.w, f.h);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // FEATURE 11: Draw Catapult
+  for (const cat of catapults) {
+    let cx = cat.x - camera.x;
+    if (cx < -50 || cx > BASE_W + 50) continue;
+
+    ctx.save();
+    // Catapult base
+    ctx.fillStyle = '#8b4513';
+    ctx.fillRect(cx, cat.y, cat.w, cat.h);
+    // Catapult arm (animated)
+    let armAngle = (cat.cooldown / cat.maxCooldown) * Math.PI * 0.4;
+    ctx.translate(cx + cat.w/2, cat.y + cat.h);
+    ctx.rotate(-armAngle);
+    ctx.fillStyle = '#5a3a1a';
+    ctx.fillRect(-2, -12, 4, 12);
+    ctx.fillRect(-8, -3, 16, 3);  // bucket
+    ctx.restore();
+  }
+
+  // FEATURE 12: Draw Watchtower (already placed as tiles, just add visual marker)
+  // The watchtower is visible via the log tiles we created
+  // Can draw a flag at the top
+  if (currentLevel === 4) {
+    for (const wp of watchtowerPlatforms) {
+      if (wp.platform === 7) {  // top platform
+        let wx = wp.x - camera.x;
+        if (wx > -50 && wx < BASE_W + 50) {
+          ctx.save();
+          ctx.fillStyle = '#dd2233';
+          ctx.globalAlpha = 0.8;
+          ctx.fillRect(wx + 4, wp.y - 20, 12, 8);
+          ctx.restore();
+        }
+      }
+    }
+  }
+
+  // Draw Flaming Sword timer bar if active
+  if (player.flamingSword) {
+    let timerPercent = player.flamingSwordTimer / 600;
+    ctx.save();
+    ctx.fillStyle = '#ff6600';
+    ctx.fillRect(10, 10, 100 * timerPercent, 4);
+    ctx.strokeStyle = '#ffaa00';
+    ctx.strokeRect(10, 10, 100, 4);
+    ctx.fillStyle = '#ffff00';
+    ctx.font = '12px Arial';
+    ctx.fillText('FLAMING SWORD', 15, 25);
+    ctx.restore();
+  }
+
   // Collectibles with BATCH 5 visual effects
   for (const c of collectibles) {
     if (!c.alive) continue;
@@ -13722,6 +14675,34 @@ function draw() {
         ctx.fillRect(-10 + l * 8, 14, 3, 6 + Math.sin(e.animFrame * 0.12 + l) * 2);
       }
       ctx.restore();
+    } else if (e.type === 'drummer') {
+      // Goblin drummer — sitting with drum
+      ctx.save();
+      // Body — green goblin
+      ctx.fillStyle = '#3a6a2a';
+      ctx.fillRect(sx + 4, e.y + 4, 12, 14);
+      // Head
+      ctx.fillStyle = '#2a5a1a';
+      ctx.beginPath();
+      ctx.arc(sx + 10, e.y + 2, 4, 0, Math.PI * 2);
+      ctx.fill();
+      // Eyes
+      ctx.fillStyle = '#ff2222';
+      ctx.fillRect(sx + 7, e.y, 2, 2);
+      ctx.fillRect(sx + 13, e.y, 2, 2);
+      // Drum
+      ctx.fillStyle = '#8b4513';
+      ctx.beginPath();
+      ctx.ellipse(sx + 10, e.y + 18, 8, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Drumsticks animation
+      let drumAngle = (e.drumAnimation || 0) * Math.PI * 0.3;
+      ctx.strokeStyle = '#5a3a1a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(sx + 10, e.y + 18, 6, drumAngle - 0.3, drumAngle + 0.3);
+      ctx.stroke();
+      ctx.restore();
     } else {
       // Regular goblin — apply squash/stretch
       ctx.save();
@@ -13832,6 +14813,31 @@ function draw() {
     ctx.beginPath();
     ctx.ellipse(0, 0, 4, 5, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  }
+
+  // Boulder projectiles (War Chief Phase 2)
+  for (const p of projectiles) {
+    if (p.type !== 'boulder') continue;
+    let bx = p.x - camera.x;
+    if (bx < -30 || bx > BASE_W + 30) continue;
+    ctx.save();
+    ctx.translate(bx + p.w/2, p.y + p.h/2);
+    // Boulder - gray rocky sphere
+    ctx.fillStyle = '#555555';
+    ctx.beginPath();
+    ctx.arc(0, 0, p.w/2, 0, Math.PI * 2);
+    ctx.fill();
+    // Rock texture
+    ctx.fillStyle = '#333333';
+    for (let i = 0; i < 4; i++) {
+      let angle = (i * Math.PI * 2 / 4) + frameCount * 0.05;
+      let x = Math.cos(angle) * 3;
+      let y = Math.sin(angle) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
 
