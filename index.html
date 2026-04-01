@@ -2170,7 +2170,7 @@ function generateTutorial() {
   let groundY = GROUND_Y;
   // Short flat level with signposts teaching each mechanic
   // ~40 columns, no gaps (except jump pit), a few enemies, simple layout
-  let tutCols = 65;
+  let tutCols = 75; // extended to include wall jump section
   let pitStart = 13, pitEnd = 16; // 3-tile gap to teach jumping
   for (let col = 0; col < tutCols; col++) {
     if (col >= pitStart && col < pitEnd) continue; // Jump pit
@@ -2239,10 +2239,31 @@ function generateTutorial() {
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
-  // Signpost 9: Exit
-  decorations.push({ x: 57 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Reach the', text2: 'Portal!' });
-  // Exit portal
-  exitPortal = { x: (tutCols - 5) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
+  // Signpost 9: Wall Jump
+  decorations.push({ x: 57 * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Slide on Walls', text2: 'Jump Off!' });
+  // Wall jump pit — two walls with a gem at the top to reward wall jumping
+  // Left wall (3 tiles tall)
+  for (let r = 0; r < 4; r++) {
+    tiles.push({ x: 59 * TILE, y: (groundY - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+    tiles.push({ x: 63 * TILE, y: (groundY - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Platform between the walls at bottom
+  for (let c = 60; c <= 62; c++) {
+    tiles.push({ x: c * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: c * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Gem at top to reward wall jumping up
+  collectibles.push({ x: 61 * TILE + 10, y: (groundY - 4) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  collectibles.push({ x: 61 * TILE + 10, y: (groundY - 3) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  // Ground continues after the wall section
+  for (let c = 64; c < tutCols + 8; c++) {
+    tiles.push({ x: c * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'ground' });
+    tiles.push({ x: c * TILE, y: (groundY + 1) * TILE, w: TILE, h: TILE, type: 'dirt' });
+  }
+  // Signpost 10: Exit
+  decorations.push({ x: (tutCols + 1) * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Reach the', text2: 'Portal!' });
+  // Exit portal (moved further to accommodate wall jump section)
+  exitPortal = { x: (tutCols + 3) * TILE, y: (groundY - 2) * TILE, w: TILE * 2, h: TILE * 2 };
   // A few trees and grass for visual
   for (let i = 0; i < 8; i++) {
     decorations.push({ x: i * 250 + 50, y: groundY * TILE, type: 'tree', size: 0.7 + Math.random() * 0.3 });
@@ -2657,11 +2678,29 @@ function generateLevel1() {
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
-  // Visual hint: sparkle at the entrance hole
+  // Visual hints for the lower path entrance — gem visible at the edge + sparkles + fireflies
   decorations.push({
     x: (lowerPathStart + 1) * TILE, y: groundY * TILE + 10,
     type: 'sparkle', phase: 0,
   });
+  decorations.push({
+    x: lowerPathStart * TILE, y: groundY * TILE + 10,
+    type: 'sparkle', phase: Math.PI * 0.5,
+  });
+  // Gem at the lip of the hole (visible from ground level, enticing drop-down)
+  collectibles.push({
+    x: lowerPathStart * TILE + 10, y: (groundY + 1) * TILE + 4,
+    w: 12, h: 16, type: 'gem', alive: true,
+  });
+  // Fireflies around the entrance to draw attention
+  for (let f = 0; f < 3; f++) {
+    decorations.push({
+      x: (lowerPathStart + f) * TILE + Math.random() * 16, y: groundY * TILE + 4 + Math.random() * 20,
+      type: 'firefly', phase: Math.random() * Math.PI * 2,
+    });
+  }
+  // Sign near the entrance
+  decorations.push({ x: (lowerPathStart - 2) * TILE, y: groundY * TILE, type: 'tutSign', text1: 'Secret', text2: 'Below...' });
 
   // --- GOBLIN AMBUSH CAMPS (3 camps scattered across the level) ---
   let ambushPositions = [
@@ -3159,8 +3198,8 @@ function generateLevel2() {
         type: 'log', logStart: c === 0, logEnd: c === logLen - 1, logLen: logLen,
       });
     }
-    // Mark every 3rd-4th log as collapsing (shakes then falls after player stands on it)
-    let shouldCollapse = logPlatforms.length > 1 && logPlatforms.length % 3 === 0;
+    // Mark every 5th log as collapsing (shakes then falls after player stands on it)
+    let shouldCollapse = logPlatforms.length > 2 && logPlatforms.length % 5 === 0;
     if (shouldCollapse) {
       let recentLogs = tiles.filter(t => t.type === 'log' && t.y === logRow * TILE && t.x >= curCol * TILE && t.x < (curCol + logLen) * TILE);
       for (let lt of recentLogs) {
@@ -3222,10 +3261,10 @@ function generateLevel2() {
     });
   }
 
-  // Goblin archers on every 2nd-3rd log platform
+  // Goblin archers on every 3rd log platform (reduced from every 2nd for fairness)
   let archerCount = 0;
-  for (let i = 1; i < logPlatforms.length; i += 2) {
-    if (archerCount >= 8) break;
+  for (let i = 2; i < logPlatforms.length; i += 3) {
+    if (archerCount >= 5) break;
     let plat = logPlatforms[i];
     let ax = (plat.col + Math.floor(plat.len / 2)) * TILE + 4;
     enemies.push({
@@ -3246,7 +3285,7 @@ function generateLevel2() {
   enemies.push({
     x: knightX, y: (groundY - 2) * TILE, w: 40, h: 48,
     vx: 0, vy: 0,
-    type: 'knight', hp: 5, maxHp: 5, alive: true, hurtTimer: 0,
+    type: 'knight', hp: 4, maxHp: 4, alive: true, hurtTimer: 0,
     facing: -1, attackCooldown: 0,
     patrolOrigin: knightX, patrolRange: 4 * TILE,
     animFrame: 0, grounded: false,
@@ -3264,7 +3303,28 @@ function generateLevel2() {
     });
   }
 
-  // --- Second checkpoint before the bridge ---
+  // --- Mid-water checkpoint (halfway through log platforms) ---
+  if (logPlatforms.length > 4) {
+    let midPlat = logPlatforms[Math.floor(logPlatforms.length / 2)];
+    // Place a wider safe platform at the mid-water checkpoint
+    let midCpCol = midPlat.col;
+    let midCpRow = midPlat.row;
+    // Add extra tiles to make a safe landing zone
+    for (let c = -1; c <= midPlat.len; c++) {
+      let cx = (midCpCol + c) * TILE;
+      let exists = tiles.find(t => t.x === cx && t.y === midCpRow * TILE);
+      if (!exists) {
+        tiles.push({ x: cx, y: midCpRow * TILE, w: TILE, h: TILE, type: 'log', logStart: false, logEnd: false, logLen: midPlat.len + 2 });
+      }
+    }
+    hazards.push({
+      type: 'checkpoint2',
+      x: (midCpCol + 1) * TILE, y: midCpRow * TILE - 28,
+      w: TILE, h: TILE, activated: false,
+    });
+  }
+
+  // --- Third checkpoint before the bridge ---
   hazards.push({
     type: 'checkpoint2',
     x: (bridgeStart - 3) * TILE, y: groundY * TILE - 28,
@@ -7686,8 +7746,8 @@ function update() {
       let active = Math.sin(h.timer * 0.03 + (h.phase || 0)) > 0.2; // cycles on/off
       h.active = active;
       if (active && rectOverlap(player, h)) {
-        player.vx += h.dir * 1.2;
-        player.vy -= 0.15; // slight updraft
+        player.vx += h.dir * 0.8; // reduced from 1.2 to prevent overshoot on small platforms
+        player.vy -= 0.12; // slight updraft
         // Wind particles
         if (frameCount % 3 === 0) {
           particles.push({
