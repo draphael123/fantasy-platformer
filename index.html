@@ -479,25 +479,20 @@ let xpGlowSweep = {
 
 // --- Save System (realmOfTheFallen_save) ---
 function saveProgress() {
-  try {
-    let saveData = {
-      highestLevel: currentLevel,
-      totalGems: player.gems || 0,
-      xp: player.xp || 0,
-      level: player.level || 1,
-      stats: player.stats || { maxHp: 0, attack: 0, speed: 0 },
-      shopPurchases: typeof shopPurchases !== 'undefined' ? shopPurchases : [],
-    };
-    localStorage.setItem('realmOfTheFallen_save', JSON.stringify(saveData));
-  } catch(e) { /* localStorage unavailable */ }
+  // Unified: merges into the canonical save structure
+  let save = loadSave();
+  if (currentLevel > save.highestUnlocked) save.highestUnlocked = currentLevel;
+  save.gems = (player.gems || 0);
+  save.xp = (player.xp || 0);
+  save.playerLevel = (player.level || 1);
+  save.stats = player.stats || save.stats;
+  if (typeof shopPurchases !== 'undefined') save.shopPurchases = shopPurchases;
+  writeSave(save);
 }
 
 function loadProgress() {
-  try {
-    let raw = localStorage.getItem('realmOfTheFallen_save');
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch(e) { return null; }
+  // Returns canonical save (same as loadSave)
+  return loadSave();
 }
 
 function clearSave() {
