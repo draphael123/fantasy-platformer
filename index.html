@@ -223,6 +223,14 @@ const ctx = canvas.getContext('2d');
 const BASE_W = 960, BASE_H = 540;
 canvas.width = BASE_W; canvas.height = BASE_H;
 
+// Apply default zoom on startup
+function applyZoomAtStartup() {
+  canvas.style.transform = `scale(${zoomLevel})`;
+  canvas.style.transformOrigin = 'center top';
+  document.getElementById('zoomLabel').textContent = Math.round(zoomLevel * 100) + '%';
+}
+applyZoomAtStartup();
+
 // ---- SOUND (Web Audio API — no files needed) ----
 let audioCtx = null;
 function initAudio() {
@@ -408,7 +416,7 @@ let scorePopups = []; // { x, y, text, life }
 let damageFlash = 0;
 let deadEnemies = []; // { x, y, vy, alpha, sprite, facing }
 let afterimages = []; // { x, y, sprite, facing, alpha }
-let zoomLevel = 1.0; // CSS zoom for canvas display
+let zoomLevel = 1.25; // CSS zoom for canvas display
 let checkpoint = null; // { x, y, activated }
 let respawnPoint = { x: 80, y: 300 }; // updates when checkpoint is hit
 let hitStop = 0; // freeze frames on enemy kill for impact
@@ -2190,29 +2198,7 @@ function generateLevel1() {
   }
 
   // --- Frogs / critters near water edges ---
-  for (const gap of gapLocations) {
-    // Place a frog on the left edge and sometimes right edge of water gaps
-    let leftEdgeX = (gap.col - 1) * TILE + 8;
-    if (hasGroundAt(leftEdgeX)) {
-      decorations.push({
-        x: leftEdgeX, y: groundY * TILE - 6,
-        type: 'frog',
-        homeX: leftEdgeX,
-        phase: Math.random() * Math.PI * 2,
-      });
-    }
-    if (Math.random() < 0.5) {
-      let rightEdgeX = (gap.col + gap.size) * TILE + 4;
-      if (hasGroundAt(rightEdgeX)) {
-        decorations.push({
-          x: rightEdgeX, y: groundY * TILE - 6,
-          type: 'frog',
-          homeX: rightEdgeX,
-          phase: Math.random() * Math.PI * 2,
-        });
-      }
-    }
-  }
+  // REMOVED: Frog decorations removed from Level 2 due to missing/broken sprite
 
   // --- Rest area near campfire: extra hearts, dense trees, no enemies (enforced above) ---
   // Add a couple bonus hearts in the rest zone
@@ -2391,68 +2377,154 @@ function generateLevel2() {
   }
 
   // --- GIANT TOAD MINI-BOSS in water zone ---
-  let toadPlat = logPlatforms[Math.floor(logPlatforms.length / 2)];
-  let toadX = (toadPlat.col + 1) * TILE;
-  enemies.push({
-    x: toadX, y: (toadPlat.row - 2) * TILE, w: 48, h: 48,
-    vx: 0, vy: 0,
-    type: 'toad_boss', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    animFrame: 0, grounded: false,
-    hopTimer: 90, // time until next hop
-    tongueAttackTimer: 0, // cooldown for tongue attack
-    telegraphTimer: 0, // telegraph for tongue attack
-  });
+  // REMOVED: Toad boss removed due to broken sprite rendering
 
-  // --- GOBLIN KNIGHT MINIBOSS hidden behind a large waterfall ---
-  // Build a wide boss arena behind the waterfall near the end of the water zone
-  let knightWfCol = waterEnd - 15;
-  let knightWfRow = groundY - 1;
-  // Boss arena floor (8 tiles wide)
+  // --- SECRET TREASURE ROOM behind a large waterfall (no boss) ---
+  let treasureWfCol = waterEnd - 15;
+  let treasureWfRow = groundY - 1;
+
+  // Secret treasure room floor (8 tiles wide)
   for (let c = 0; c < 8; c++) {
     tiles.push({
-      x: (knightWfCol + c) * TILE, y: knightWfRow * TILE, w: TILE, h: TILE,
+      x: (treasureWfCol + c) * TILE, y: treasureWfRow * TILE, w: TILE, h: TILE,
       type: 'log', logStart: c === 0, logEnd: c === 7, logLen: 8,
     });
   }
-  // Spawn the knight in the arena
-  let knightX = (knightWfCol + 3) * TILE;
-  enemies.push({
-    x: knightX, y: (knightWfRow - 2) * TILE, w: 32, h: 36,
-    vx: 0, vy: 0,
-    type: 'knight', hp: 3, maxHp: 3, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: knightWfCol * TILE, patrolRange: 7 * TILE,
-    animFrame: 0, grounded: false,
-    chargeTimer: 0,
-    phase: 'idle',
-    phaseTimer: 60,
-  });
-  // Large waterfall curtain hiding the boss arena
+
+  // Waterfall curtain - now hides a treasure room instead of a boss
   decorations.push({
     type: 'waterfall_curtain',
-    x: knightWfCol * TILE, y: (knightWfRow - 5) * TILE,
+    x: treasureWfCol * TILE, y: (treasureWfRow - 5) * TILE,
     w: TILE * 3, h: TILE * 6,
     phase: 0,
     isBossWaterfall: true,
   });
-  // Boss indicator decorations near the waterfall entrance
+
+  // Ancient stone shrine/pedestal in the treasure room
   decorations.push({
-    type: 'boss_indicator',
-    x: (knightWfCol - 1) * TILE, y: (knightWfRow - 2) * TILE,
+    type: 'stone_pedestal',
+    x: (treasureWfCol + 3) * TILE, y: (treasureWfRow - 2) * TILE,
     phase: 0,
   });
-  // Gem reward for finding the secret boss
+
+  // Treasure chest decoration in the center of the room
+  decorations.push({
+    type: 'chest',
+    x: (treasureWfCol + 4) * TILE, y: (treasureWfRow - 1) * TILE,
+    phase: 0,
+  });
+
+  // Cluster of 6 gems in the treasure room
   for (let g = 0; g < 6; g++) {
     collectibles.push({
-      x: (knightWfCol + 1 + g) * TILE + 4, y: (knightWfRow - 1) * TILE + 4,
+      x: (treasureWfCol + 1 + g * 0.8) * TILE + 4, y: (treasureWfRow - 1) * TILE + 4,
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
+
+  // Health heart pickup in the treasure room
   collectibles.push({
-    x: (knightWfCol + 4) * TILE, y: (knightWfRow - 1) * TILE,
+    x: (treasureWfCol + 4) * TILE, y: (treasureWfRow - 2) * TILE,
     w: 16, h: 16, type: 'heart', alive: true,
   });
+
+  // --- Additional water platforming challenges ---
+  // Extra stone/log platforms over water gaps for more challenging platforming
+  let waterPlatformZoneStart = waterStart + Math.floor((waterEnd - waterStart) * 0.3);
+  let waterPlatformZoneEnd = treasureWfCol - 5;
+  let extraPlatCount = 0;
+
+  for (let i = waterPlatformZoneStart; i < waterPlatformZoneEnd && extraPlatCount < 3; i += 8) {
+    let platLen = 2 + Math.floor(Math.random() * 2);
+    let platRow = groundY - 2 - Math.floor(Math.random() * 2);
+    for (let c = 0; c < platLen; c++) {
+      tiles.push({
+        x: (i + c) * TILE, y: platRow * TILE, w: TILE, h: TILE,
+        type: 'log', logStart: c === 0, logEnd: c === platLen - 1, logLen: platLen,
+      });
+    }
+
+    // Add archers or goblins on these platforms for challenge
+    let enemyType = Math.random() > 0.5 ? 'archer' : 'goblin';
+    enemies.push({
+      x: (i + Math.floor(platLen / 2)) * TILE, y: (platRow - 2) * TILE, w: 32, h: 32,
+      vx: 0, vy: 0,
+      type: enemyType, hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: -1, attackCooldown: 0,
+      patrolOrigin: i * TILE, patrolRange: 4 * TILE,
+      animFrame: 0, grounded: false,
+    });
+
+    // Gem reward on platform
+    collectibles.push({
+      x: (i + Math.floor(platLen / 2)) * TILE, y: (platRow - 1) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+
+    extraPlatCount++;
+  }
+
+  // --- Second waterfall secret with bonus gems ---
+  // Add another walkable waterfall elsewhere in the water zone with bonus gems
+  let secondWaterfallCol = waterStart + Math.floor((waterEnd - waterStart) * 0.6);
+  decorations.push({
+    type: 'waterfall_curtain',
+    x: secondWaterfallCol * TILE, y: (groundY - 3) * TILE,
+    w: TILE * 2, h: TILE * 4,
+    phase: Math.PI,
+  });
+
+  // Hidden alcove behind second waterfall
+  for (let c = 0; c < 2; c++) {
+    tiles.push({
+      x: (secondWaterfallCol + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE,
+      type: 'log', logStart: c === 0, logEnd: c === 1, logLen: 2,
+    });
+  }
+
+  // Bonus gems in second waterfall secret (2-3 gems)
+  for (let g = 0; g < 3; g++) {
+    collectibles.push({
+      x: (secondWaterfallCol + g * 0.5) * TILE + 4, y: (groundY - 2) * TILE + 4,
+      w: 12, h: 16, type: 'gem', alive: true,
+    });
+  }
+
+  // --- Water zone environmental decorations ---
+  // Cattails and lily pads near water
+  for (let i = 0; i < 8; i++) {
+    let cattailX = waterStart * TILE + Math.random() * (waterEnd - waterStart) * TILE;
+    decorations.push({
+      type: 'cattail',
+      x: cattailX, y: groundY * TILE - 2,
+    });
+  }
+
+  // Rock formations as platforms/decoration
+  for (let i = 0; i < 5; i++) {
+    let rockX = waterStart * TILE + (i + 1) * (waterEnd - waterStart) / 6 * TILE;
+    decorations.push({
+      type: 'rock_formation',
+      x: rockX, y: groundY * TILE,
+      size: 0.7 + Math.random() * 0.4,
+    });
+  }
+
+  // Wooden dock/pier decoration
+  decorations.push({
+    type: 'wooden_dock',
+    x: (waterStart + 2) * TILE, y: (groundY - 0.5) * TILE,
+  });
+
+  // Torches and lanterns on platforms
+  for (const plat of logPlatforms) {
+    if (Math.random() < 0.4) {
+      decorations.push({
+        type: 'torch',
+        x: (plat.col + plat.len - 1) * TILE, y: (plat.row - 1) * TILE - 8,
+      });
+    }
+  }
 
   // --- Collectibles ---
   // Gems in intro forest
@@ -3167,43 +3239,42 @@ function generateLevel4() {
   });
 
   // --- Enemies ---
-  // Root wraiths on platforms (phase through platforms briefly)
+  // Goblins on platforms
   for (let i = 2; i < rootPlatforms.length; i += 3) {
     let bp = rootPlatforms[i];
     if (bp.len < 3 || bp.isMushroom) continue;
     enemies.push({
-      x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE, w: 22, h: 26,
-      vx: 0.8, vy: 0,
-      type: 'wraith', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+      x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
+      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
       facing: 1, attackCooldown: 0,
       patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 24,
       animFrame: Math.random() * 100 | 0,
-      phaseTimer: 0, phasing: false, aggro: false,
     });
   }
 
-  // Fungal goblins (leave poison cloud on death)
+  // Goblins on platforms
   for (let i = 1; i < rootPlatforms.length; i += 4) {
     let bp = rootPlatforms[i];
     if (bp.len < 3 || bp.isMushroom) continue;
     enemies.push({
       x: (bp.col + 1) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
-      vx: 0.5, vy: 0,
-      type: 'fungal_goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
       facing: 1, attackCooldown: 0,
       patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 24,
       animFrame: Math.random() * 100 | 0,
     });
   }
 
-  // Beetles that sit on platforms (act like regular goblins but with armor — 2hp)
+  // Goblins on platforms
   for (let i = 4; i < rootPlatforms.length; i += 5) {
     let bp = rootPlatforms[i];
     if (bp.len < 3 || bp.isMushroom) continue;
     enemies.push({
-      x: (bp.col + 2) * TILE, y: (bp.row - 1) * TILE, w: 26, h: 22,
-      vx: 0.6, vy: 0,
-      type: 'beetle', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
+      x: (bp.col + 2) * TILE, y: (bp.row - 1) * TILE, w: 24, h: 28,
+      vx: (Math.random() < 0.5 ? 1 : -1) * (0.5 + Math.random() * 0.6), vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
       facing: 1, attackCooldown: 0,
       patrolOrigin: bp.col * TILE, patrolRange: bp.len * TILE - 28,
       animFrame: Math.random() * 100 | 0,
@@ -8944,10 +9015,12 @@ function countAliveEnemies() {
 function drawBrazier() {
   if (!exitPortal) return;
   let sx = exitPortal.x - camera.x;
+  let sy = exitPortal.y - camera.y;
   if (sx < -80 || sx > BASE_W + 80) return;
+  if (sy < -80 || sy > BASE_H + 80) return;
 
   let brazierCx = sx + TILE;
-  let brazierCy = exitPortal.y + TILE;
+  let brazierCy = sy + TILE;
   let isActive = countAliveEnemies() === 0;
 
   ctx.save();
@@ -9109,15 +9182,32 @@ function drawHUD() {
   ctx.fillStyle = '#f4d03f';
   ctx.fillText(`SCORE: ${score}`, BASE_W - 16, 32);
 
-  // Combo
+  // Level indicator (Y = 52)
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#000';
+  ctx.fillText(`LEVEL ${currentLevel}`, BASE_W - 15, 53);
+  ctx.fillStyle = '#aaddff';
+  ctx.fillText(`LEVEL ${currentLevel}`, BASE_W - 16, 52);
+
+  // Gem counter (Y = 72)
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#000';
+  ctx.fillText(`GEMS: ${collectedGems} / ${totalGems}`, BASE_W - 15, 73);
+  ctx.fillStyle = '#44ffee';
+  ctx.fillText(`GEMS: ${collectedGems} / ${totalGems}`, BASE_W - 16, 72);
+
+  // Combo (Y = 90 when displayed)
   if (player.combo > 1) {
     ctx.fillStyle = '#ff8844';
     ctx.font = 'bold 16px monospace';
-    ctx.fillText(`COMBO x${player.combo}`, BASE_W - 16, 54);
+    ctx.textAlign = 'right';
+    ctx.fillText(`COMBO x${player.combo}`, BASE_W - 16, 90);
   }
 
 
-  // Style Meter Display
+  // Style Meter Display (Y = 108 when displayed)
   if (styleMeter > 0 || styleAttackTypes.length > 0) {
     let styleRankInfo = getStyleRank(styleMeter);
     ctx.font = 'bold 14px monospace';
@@ -9125,7 +9215,7 @@ function drawHUD() {
 
     // Shadow
     ctx.fillStyle = '#000';
-    ctx.fillText(`STYLE: ${styleRankInfo.rank}`, BASE_W - 15, 73);
+    ctx.fillText(`STYLE: ${styleRankInfo.rank}`, BASE_W - 15, 109);
 
     // Main text with glow effect for SS
     if (styleRankInfo.glow) {
@@ -9137,13 +9227,13 @@ function drawHUD() {
     }
 
     ctx.fillStyle = styleRankInfo.color;
-    ctx.fillText(`STYLE: ${styleRankInfo.rank}`, BASE_W - 16, 72);
+    ctx.fillText(`STYLE: ${styleRankInfo.rank}`, BASE_W - 16, 108);
     ctx.shadowBlur = 0;
 
     // Style meter bar
     let meterWidth = 120;
     let meterX = BASE_W - meterWidth - 16;
-    let meterY = 77;
+    let meterY = 113;
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(meterX, meterY, meterWidth, 8);
 
@@ -9203,22 +9293,6 @@ function drawHUD() {
     ctx.textAlign = 'left';
     ctx.fillText('SHIELDED', 16, BASE_H - 68);
   }
-
-  // Level indicator
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#000';
-  ctx.fillText(`LEVEL ${currentLevel}`, BASE_W - 15, 55);
-  ctx.fillStyle = '#aaddff';
-  ctx.fillText(`LEVEL ${currentLevel}`, BASE_W - 16, 54);
-
-  // Gem counter
-  ctx.font = 'bold 14px monospace';
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#000';
-  ctx.fillText(`GEMS: ${collectedGems} / ${totalGems}`, BASE_W - 15, 72);
-  ctx.fillStyle = '#44ffee';
-  ctx.fillText(`GEMS: ${collectedGems} / ${totalGems}`, BASE_W - 16, 71);
 
   // Enemies remaining
   let alive = enemies.filter(e => e.alive).length;
@@ -10287,25 +10361,40 @@ function draw() {
     if (d.type !== 'waterfall_curtain') continue;
     let dx = d.x - camera.x;
     if (dx < -100 || dx > BASE_W + 100) continue;
-    let streamCount = d.isBossWaterfall ? 5 : 3;
-    let streamWidth = d.isBossWaterfall ? 14 : 12;
+    let streamCount = d.isBossWaterfall ? 6 : 4;
+    let streamWidth = d.isBossWaterfall ? 16 : 14;
     ctx.save();
-    // Waterfall streams
+    // Waterfall streams - thick, flowing water
     for (let s = 0; s < streamCount; s++) {
       let sx = dx + s * streamWidth + Math.sin(frameCount * 0.08 + s * 1.5 + d.phase) * 3;
-      ctx.globalAlpha = 0.5 + Math.sin(frameCount * 0.06 + s) * 0.15;
-      ctx.fillStyle = '#88bbdd';
-      ctx.fillRect(sx, d.y, 8, d.h);
-      ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#aaddff';
-      ctx.fillRect(sx + 2, d.y, 3, d.h);
+      // Main water stream - thick blue
+      ctx.globalAlpha = 0.7 + Math.sin(frameCount * 0.06 + s) * 0.15;
+      ctx.fillStyle = '#4488cc';
+      ctx.fillRect(sx, d.y, 12, d.h);
+      // Lighter water highlight on right side
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#88bbee';
+      ctx.fillRect(sx + 3, d.y, 4, d.h);
+      // White foam on edges
+      ctx.globalAlpha = 0.35 + Math.sin(frameCount * 0.1 + s) * 0.2;
+      ctx.fillStyle = '#eeffff';
+      ctx.fillRect(sx + 8, d.y, 3, d.h);
     }
-    // Mist at base
-    let mistSize = d.isBossWaterfall ? 35 : 20;
-    ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.04 + d.phase) * 0.1;
+    // Dense mist at base (foam effect)
+    let mistSize = d.isBossWaterfall ? 45 : 30;
+    ctx.globalAlpha = 0.45 + Math.sin(frameCount * 0.04 + d.phase) * 0.15;
     ctx.fillStyle = '#aaccee';
     ctx.beginPath();
     ctx.arc(dx + TILE, d.y + d.h, mistSize, 0, Math.PI * 2);
+    ctx.fill();
+    // Secondary splash mist
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#88bbdd';
+    ctx.beginPath();
+    ctx.arc(dx + TILE - 20, d.y + d.h - 10, 20, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(dx + TILE + 20, d.y + d.h - 10, 20, 0, Math.PI * 2);
     ctx.fill();
     // Boss waterfall: glowing red eyes peering through + periodic ground shake hint
     if (d.isBossWaterfall) {
@@ -12082,7 +12171,7 @@ function startLevel(lvl) {
 
   // BATCH 4: Show level title card
   let levelName = currentLevel === 0 ? 'TUTORIAL' : `LEVEL ${currentLevel}`;
-  let levelSubtitle = currentLevel === 0 ? 'Learn the controls' : 'Defeat all enemies';
+  let levelSubtitle = currentLevel === 0 ? 'Learn the controls' : 'Make it to the goal';
   showLevelTitleCard(levelName, levelSubtitle);
 
   gameState = 'playing';
