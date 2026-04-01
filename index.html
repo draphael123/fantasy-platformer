@@ -101,7 +101,7 @@
 <body>
 
 <!-- Main Menu -->
-<div id="mainMenu">
+<div id="mainMenu" class="hidden">
   <div class="overlay-title">Realm of the Fallen</div>
   <div class="overlay-sub">A lone knight ventures into the dark forest</div>
   <button class="menu-btn" id="playBtn" style="background:linear-gradient(135deg,#f39c12,#e67e22);box-shadow:0 4px 0 #d35400;">Continue</button>
@@ -970,7 +970,7 @@ const LEVELS = [
 ];
 
 // ---- GAME STATE ----
-let gameState = 'menu'; // menu | levelselect | playing | paused | dead | win | levelcomplete
+let gameState = 'intro'; // intro | menu | levelselect | playing | paused | dead | win | levelcomplete
 let score = 0;
 let camera = { x: 0, y: 0 };
 
@@ -1523,6 +1523,408 @@ const levelCelebration = {
       ctx.fillRect(0, 0, baseW, baseH);
       ctx.restore();
     }
+  }
+};
+
+// ---- CINEMATIC INTRO SEQUENCE ----
+const introSequence = {
+  frame: 0,
+  phase: 'fadein', // fadein, story, title, fadeout
+  storyLines: [
+    { text: 'The kingdom fell to shadow...', delay: 60 },
+    { text: 'Its heroes, scattered to the winds...', delay: 180 },
+    { text: 'But one knight remains.', delay: 300 },
+  ],
+  titleRevealFrame: 450,
+  subtitleFrame: 520,
+  endFrame: 700,
+  scrollX: 0,
+  knightX: -60,
+  knightWalkFrame: 0,
+  particles: [],
+  fireflies: [],
+  stars: [],
+  shakeTimer: 0,
+  shakeAmount: 0,
+  titleScale: 0,
+  titleAlpha: 0,
+  subtitleAlpha: 0,
+  skipAlpha: 0,
+  fadeinAlpha: 1,
+  fadeoutAlpha: 0,
+
+  init() {
+    this.frame = 0;
+    this.phase = 'fadein';
+    this.scrollX = 0;
+    this.knightX = -60;
+    this.knightWalkFrame = 0;
+    this.particles = [];
+    this.shakeTimer = 0;
+    this.shakeAmount = 0;
+    this.titleScale = 0;
+    this.titleAlpha = 0;
+    this.subtitleAlpha = 0;
+    this.skipAlpha = 0;
+    this.fadeinAlpha = 1;
+    this.fadeoutAlpha = 0;
+    // Generate stars
+    this.stars = [];
+    for (let i = 0; i < 80; i++) {
+      this.stars.push({
+        x: Math.random() * BASE_W,
+        y: Math.random() * BASE_H * 0.45,
+        size: 0.3 + Math.random() * 1.2,
+        twinkle: Math.random() * Math.PI * 2,
+        speed: 0.01 + Math.random() * 0.02,
+      });
+    }
+    // Generate fireflies
+    this.fireflies = [];
+    for (let i = 0; i < 15; i++) {
+      this.fireflies.push({
+        x: Math.random() * BASE_W,
+        y: BASE_H * 0.5 + Math.random() * BASE_H * 0.4,
+        phase: Math.random() * Math.PI * 2,
+        radius: 20 + Math.random() * 40,
+        speed: 0.005 + Math.random() * 0.01,
+        size: 1 + Math.random() * 1.5,
+      });
+    }
+  },
+
+  update() {
+    this.frame++;
+    this.scrollX -= 0.3;
+
+    // Fade in from black
+    if (this.frame < 60) {
+      this.fadeinAlpha = Math.max(0, 1 - this.frame / 60);
+    } else {
+      this.fadeinAlpha = 0;
+    }
+
+    // Knight walks across screen
+    if (this.frame > 120 && this.frame < this.titleRevealFrame) {
+      this.knightX += 0.8;
+      this.knightWalkFrame++;
+    }
+
+    // Skip prompt fade in
+    if (this.frame > 90) {
+      this.skipAlpha = Math.min(0.5, this.skipAlpha + 0.005);
+    }
+
+    // Title slam
+    if (this.frame >= this.titleRevealFrame && this.titleScale < 1) {
+      if (this.titleScale === 0) {
+        // Initial slam
+        this.shakeTimer = 15;
+        this.shakeAmount = 8;
+        // Spawn gold particles
+        for (let i = 0; i < 40; i++) {
+          this.particles.push({
+            x: BASE_W / 2 + (Math.random() - 0.5) * 300,
+            y: BASE_H * 0.28,
+            vx: (Math.random() - 0.5) * 6,
+            vy: -2 - Math.random() * 4,
+            life: 60 + Math.random() * 40,
+            maxLife: 100,
+            size: 1 + Math.random() * 2,
+            color: Math.random() > 0.5 ? '#f4d03f' : '#f39c12',
+          });
+        }
+        if (typeof playSound === 'function') playSound('kill');
+      }
+      this.titleScale = Math.min(1, this.titleScale + 0.08);
+      this.titleAlpha = Math.min(1, this.titleAlpha + 0.06);
+    }
+
+    // Subtitle fade
+    if (this.frame >= this.subtitleFrame) {
+      this.subtitleAlpha = Math.min(1, this.subtitleAlpha + 0.02);
+    }
+
+    // Shake decay
+    if (this.shakeTimer > 0) {
+      this.shakeTimer--;
+      this.shakeAmount *= 0.9;
+    }
+
+    // Update particles
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      let p = this.particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.08;
+      p.life--;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+
+    // Fadeout to menu
+    if (this.frame >= this.endFrame - 60) {
+      this.fadeoutAlpha = Math.min(1, this.fadeoutAlpha + 0.02);
+    }
+
+    // End intro
+    if (this.frame >= this.endFrame) {
+      this.skip();
+    }
+  },
+
+  skip() {
+    gameState = 'menu';
+    showMainMenu();
+  },
+
+  draw(ctx) {
+    let w = BASE_W;
+    let h = BASE_H;
+    let sx = this.shakeTimer > 0 ? (Math.random() - 0.5) * this.shakeAmount : 0;
+    let sy = this.shakeTimer > 0 ? (Math.random() - 0.5) * this.shakeAmount : 0;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+
+    // Night sky gradient
+    let grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#0a0a1a');
+    grad.addColorStop(0.35, '#1a0f2e');
+    grad.addColorStop(0.6, '#2d1b4e');
+    grad.addColorStop(1, '#1a3a3a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Stars
+    for (let s of this.stars) {
+      let twinkle = 0.3 + Math.sin(this.frame * s.speed + s.twinkle) * 0.5 + 0.5;
+      ctx.globalAlpha = twinkle * 0.8;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.size * twinkle, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Large moon (upper right, bigger than menu moon)
+    let moonX = w * 0.78;
+    let moonY = h * 0.12;
+    let moonSize = 55;
+    // Outer glow
+    ctx.globalAlpha = 0.15 + Math.sin(this.frame * 0.01) * 0.05;
+    let moonGrad = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, moonSize * 3);
+    moonGrad.addColorStop(0, '#ffdd88');
+    moonGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = moonGrad;
+    ctx.fillRect(moonX - moonSize * 3, moonY - moonSize * 3, moonSize * 6, moonSize * 6);
+    // Moon disk
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffee';
+    ctx.beginPath();
+    ctx.arc(moonX, moonY, moonSize, 0, Math.PI * 2);
+    ctx.fill();
+    // Craters
+    ctx.fillStyle = '#ddddbb';
+    ctx.beginPath(); ctx.arc(moonX - 15, moonY - 10, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(moonX + 20, moonY + 15, 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(moonX + 5, moonY - 20, 4, 0, Math.PI * 2); ctx.fill();
+
+    // Distant mountains (scrolling)
+    ctx.fillStyle = '#0d1820';
+    ctx.beginPath();
+    ctx.moveTo(-50, h * 0.65);
+    for (let mx = -50; mx < w + 50; mx += 40) {
+      let mh = Math.sin((mx + this.scrollX * 0.1) * 0.008) * 60 + Math.cos((mx + this.scrollX * 0.1) * 0.005) * 40;
+      ctx.lineTo(mx, h * 0.45 + mh);
+    }
+    ctx.lineTo(w + 50, h);
+    ctx.lineTo(-50, h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Mid forest silhouette (scrolling slower)
+    ctx.fillStyle = '#0a2e2e';
+    for (let i = -2; i < 6; i++) {
+      let tx = i * 200 + (this.scrollX * 0.4) % 200;
+      ctx.beginPath();
+      ctx.moveTo(tx, h * 0.6);
+      ctx.lineTo(tx - 15, h * 0.72);
+      ctx.lineTo(tx - 12, h * 0.7);
+      ctx.lineTo(tx - 30, h * 0.85);
+      ctx.lineTo(tx + 30, h * 0.85);
+      ctx.lineTo(tx + 12, h * 0.7);
+      ctx.lineTo(tx + 15, h * 0.72);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Foreground dense forest (scrolling faster)
+    ctx.fillStyle = '#051818';
+    for (let i = -2; i < 7; i++) {
+      let tx = i * 160 + (this.scrollX * 0.7) % 160;
+      ctx.beginPath();
+      ctx.moveTo(tx, h * 0.78);
+      ctx.lineTo(tx - 20, h * 0.88);
+      ctx.lineTo(tx - 10, h * 0.85);
+      ctx.lineTo(tx - 35, h);
+      ctx.lineTo(tx + 35, h);
+      ctx.lineTo(tx + 10, h * 0.85);
+      ctx.lineTo(tx + 20, h * 0.88);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Ground
+    ctx.fillStyle = '#040e0e';
+    ctx.fillRect(0, h * 0.92, w, h * 0.08);
+
+    // Fireflies
+    for (let f of this.fireflies) {
+      let fx = f.x + Math.sin(this.frame * f.speed + f.phase) * f.radius;
+      let fy = f.y + Math.cos(this.frame * f.speed * 0.7 + f.phase) * f.radius * 0.5;
+      let glow = 0.3 + Math.sin(this.frame * 0.03 + f.phase) * 0.3;
+      ctx.globalAlpha = glow;
+      ctx.fillStyle = '#aaffaa';
+      ctx.beginPath();
+      ctx.arc(fx, fy, f.size * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = glow * 1.5;
+      ctx.fillStyle = '#eeffcc';
+      ctx.beginPath();
+      ctx.arc(fx, fy, f.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Knight silhouette walking
+    if (this.frame > 120) {
+      let kx = this.knightX;
+      let ky = h * 0.92 - 36;
+      let bobY = Math.sin(this.knightWalkFrame * 0.15) * 2;
+      ctx.fillStyle = '#0a0a0a';
+      // Body
+      ctx.fillRect(kx + 8, ky + 10 + bobY, 14, 18);
+      // Head (helmet)
+      ctx.beginPath();
+      ctx.arc(kx + 15, ky + 6 + bobY, 8, 0, Math.PI * 2);
+      ctx.fill();
+      // Helmet plume
+      ctx.fillStyle = '#1a0808';
+      ctx.fillRect(kx + 12, ky - 2 + bobY, 3, 8);
+      ctx.fillStyle = '#0a0a0a';
+      // Legs (walking animation)
+      let legPhase = Math.sin(this.knightWalkFrame * 0.15);
+      ctx.fillRect(kx + 10 + legPhase * 3, ky + 28 + bobY, 4, 10);
+      ctx.fillRect(kx + 16 - legPhase * 3, ky + 28 + bobY, 4, 10);
+      // Sword on back
+      ctx.save();
+      ctx.translate(kx + 22, ky + 8 + bobY);
+      ctx.rotate(-0.3);
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(0, -14, 2, 22);
+      // Sword hilt
+      ctx.fillRect(-3, -14, 8, 3);
+      ctx.restore();
+      // Cape flowing
+      ctx.fillStyle = '#0c0c1c';
+      ctx.beginPath();
+      let capeWave = Math.sin(this.knightWalkFrame * 0.1) * 3;
+      ctx.moveTo(kx + 8, ky + 12 + bobY);
+      ctx.lineTo(kx - 4 + capeWave, ky + 28 + bobY);
+      ctx.lineTo(kx + 8, ky + 26 + bobY);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // Story text (typewriter effect)
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < this.storyLines.length; i++) {
+      let line = this.storyLines[i];
+      if (this.frame < line.delay) continue;
+      let elapsed = this.frame - line.delay;
+      let charsToShow = Math.min(line.text.length, Math.floor(elapsed / 2));
+      let displayText = line.text.substring(0, charsToShow);
+      let fadeIn = Math.min(1, elapsed / 30);
+      ctx.globalAlpha = fadeIn * (this.frame > this.titleRevealFrame - 30 ? Math.max(0, 1 - (this.frame - this.titleRevealFrame + 30) / 30) : 1);
+      ctx.fillStyle = '#c0c8d0';
+      ctx.font = '16px Georgia, serif';
+      ctx.fillText(displayText, w / 2, h * 0.25 + i * 30);
+    }
+    ctx.globalAlpha = 1;
+
+    // Title slam
+    if (this.titleAlpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = this.titleAlpha;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      let scale = 0.5 + this.titleScale * 0.5;
+      ctx.translate(w / 2, h * 0.35);
+      ctx.scale(scale, scale);
+      // Title shadow
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 52px Georgia, serif';
+      ctx.fillText('REALM OF THE FALLEN', 3, 3);
+      // Title text
+      ctx.fillStyle = '#f4d03f';
+      ctx.fillText('REALM OF THE FALLEN', 0, 0);
+      // Gold glow
+      ctx.globalAlpha = this.titleAlpha * 0.3;
+      ctx.shadowColor = '#f4d03f';
+      ctx.shadowBlur = 30;
+      ctx.fillText('REALM OF THE FALLEN', 0, 0);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+
+    // Subtitle
+    if (this.subtitleAlpha > 0) {
+      ctx.globalAlpha = this.subtitleAlpha;
+      ctx.fillStyle = '#8899aa';
+      ctx.font = '15px Georgia, serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('A lone knight ventures into the dark forest', w / 2, h * 0.44);
+      ctx.globalAlpha = 1;
+    }
+
+    // Gold particles from title slam
+    for (let p of this.particles) {
+      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Skip prompt
+    if (this.skipAlpha > 0) {
+      ctx.globalAlpha = this.skipAlpha * (0.5 + Math.sin(this.frame * 0.03) * 0.3);
+      ctx.fillStyle = '#667788';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Press any key or click to skip', w / 2, h * 0.96);
+      ctx.globalAlpha = 1;
+    }
+
+    // Fade in from black
+    if (this.fadeinAlpha > 0) {
+      ctx.globalAlpha = this.fadeinAlpha;
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
+
+    // Fadeout to menu
+    if (this.fadeoutAlpha > 0) {
+      ctx.globalAlpha = this.fadeoutAlpha;
+      ctx.fillStyle = '#0a1a0a';
+      ctx.fillRect(0, 0, w, h);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
   }
 };
 
@@ -14071,7 +14473,10 @@ function gameLoop() {
     ctx.fillStyle = '#0a1a0a';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // BATCH 6: Menu background and button hover
-    if (gameState === 'menu') {
+    if (gameState === 'intro') {
+      introSequence.update();
+      introSequence.draw(ctx);
+    } else if (gameState === 'menu') {
       menuBackground.update();
       buttonHover.update();
       menuBackground.draw(ctx, BASE_W, BASE_H);
@@ -14506,8 +14911,28 @@ document.getElementById('importSaveScreen').addEventListener('click', function(e
   if (e.target === this) hideImportModal();
 });
 
-// Start — show main menu, then kick off render loop
-showMainMenu();
+// Start — show intro sequence, then kick off render loop
+function startIntro() {
+  hideAllScreens();
+  introSequence.init();
+  gameState = 'intro';
+  // Start menu music during intro
+  MusicEngine.startMenu();
+}
+// Skip intro on any key or click
+document.addEventListener('keydown', function introSkipKey(e) {
+  if (gameState === 'intro') {
+    introSequence.skip();
+    document.removeEventListener('keydown', introSkipKey);
+  }
+});
+canvas.addEventListener('click', function introSkipClick() {
+  if (gameState === 'intro') {
+    introSequence.skip();
+    canvas.removeEventListener('click', introSkipClick);
+  }
+});
+startIntro();
 gameLoop();
 </script>
 </body>
