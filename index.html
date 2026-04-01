@@ -2868,7 +2868,7 @@ function generateLevel2() {
   }
   // Gems in exit area
   for (let i = 0; i < 6; i++) {
-    let cx = bossEnd * TILE + 40 + i * 50;
+    let cx = bridgeEnd * TILE + 40 + i * 50;
     if (!hasGroundAt(cx + 6)) continue;
     collectibles.push({ x: cx, y: (groundY - 1) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
   }
@@ -2882,8 +2882,8 @@ function generateLevel2() {
     });
   }
   // Hearts before boss bridge
-  collectibles.push({ x: (bossStart - 1) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
-  collectibles.push({ x: (bossStart) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (bridgeStart - 1) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
+  collectibles.push({ x: (bridgeStart) * TILE, y: (groundY - 1) * TILE, w: 16, h: 16, type: 'heart', alive: true });
 
   // --- Elevated escape platforms for rising water ---
   let elevatedPlatforms = [];
