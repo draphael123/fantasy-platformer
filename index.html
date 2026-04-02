@@ -6977,14 +6977,16 @@ function update() {
   if (player.invincible > 0) player.invincible--;
   if (player.comboTimer > 0) { player.comboTimer--; } else { player.combo = 0; }
 
-  // Physics
-  player.prevVy = player.vy;
-  player.vy += GRAVITY;
-  if (player.vy > 14) player.vy = 14; // terminal velocity cap — prevent clipping through thin platforms
-  player.x += player.vx;
-  player.y += player.vy;
-  player.wasGrounded = player.grounded;
-  resolveCollision(player, false);
+  // Physics (skip during house transitions to prevent falling)
+  if (!houseTransition.active) {
+    player.prevVy = player.vy;
+    player.vy += GRAVITY;
+    if (player.vy > 14) player.vy = 14; // terminal velocity cap — prevent clipping through thin platforms
+    player.x += player.vx;
+    player.y += player.vy;
+    player.wasGrounded = player.grounded;
+    resolveCollision(player, false);
+  }
 
 
   // --- Wall Jump Logic ---
