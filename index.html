@@ -2595,6 +2595,12 @@ let feasts = [];
 let phase2Triggered = false;
 let warChiefPhase2Platform = null;
 
+// ---- HOUSE SYSTEM ----
+let houses = [];
+let houseInterior = null; // { houseIndex, tiles, collectibles, enemies, roomW, roomH, exitDoor, entered: false }
+let houseTransition = { active: false, fadeOut: false, fadeIn: false, alpha: 0, targetHouse: null, exitingHouse: false };
+let savedOutdoorState = null; // saves player position when entering house
+
 // ---- WEATHER INITIALIZATION ----
 function initWeather() {
   weatherParticles = [];
@@ -2635,6 +2641,13 @@ function generateLevel() {
   feasts = [];
   phase2Triggered = false;
   warChiefPhase2Platform = null;
+
+  // Reset house system
+  houses = [];
+  houseInterior = null;
+  houseTransition = { active: false, fadeOut: false, fadeIn: false, alpha: 0, targetHouse: null, exitingHouse: false };
+  savedOutdoorState = null;
+
   // Set level length — all main levels are long, tutorial stays shorter
   if (currentLevel === 0) {
     COLS = Math.ceil(BASE_W / TILE) + 120; // tutorial stays shorter
@@ -4884,7 +4897,7 @@ function generateLevel3() {
 function generateLevel4() {
   let groundY = GROUND_Y; // = 15
 
-  // --- The Goblin Stockade: Simple forest village with enterable houses ---
+  // --- The Goblin Stockade: Simple forest village with ENTERABLE CUSTOM-DRAWN HOUSES ---
   // COLS = 390, TILE = 32, continuous ground throughout
 
   // Continuous ground across entire level
@@ -4925,70 +4938,39 @@ function generateLevel4() {
   }
 
   // --- ZONE 2: First house cluster (cols 20-80) ---
-  // House 1 at col 30: Simple cabin with doorway on left, items inside
-  let h1Col = 30, h1W = 7, h1H = 4;
-  // Left and right walls
-  for (let r = 0; r < h1H; r++) {
-    tiles.push({ x: h1Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    tiles.push({ x: (h1Col + h1W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-  }
-  // Roof (log tiles spanning full width)
-  for (let c = 0; c < h1W; c++) {
-    tiles.push({
-      x: (h1Col + c) * TILE, y: (groundY - h1H) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h1W - 1, logLen: h1W,
-    });
-  }
-  // Peaked roof (narrower row on top)
-  for (let c = 0; c < h1W - 2; c++) {
-    tiles.push({
-      x: (h1Col + 1 + c) * TILE, y: (groundY - h1H - 1) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h1W - 3, logLen: h1W - 2,
-    });
-  }
-  // Back wall (middle rows, leaving door open on left at ground level)
-  for (let r = 1; r < h1H; r++) {
-    for (let c = 1; c < h1W - 1; c++) {
-      tiles.push({
-        x: (h1Col + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-  // Torch inside house 1
-  decorations.push({ x: (h1Col + 3) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
-  // Gems inside
-  collectibles.push({ x: (h1Col + 4) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
-  collectibles.push({ x: (h1Col + 5) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  // House 1 at col 30: 2 gems inside
+  houses.push({
+    x: 30 * TILE,
+    y: (groundY - 4) * TILE,
+    w: 7 * TILE,
+    h: 4 * TILE,
+    doorX: 30 * TILE + 2 * TILE,
+    doorY: groundY * TILE - 2 * TILE,
+    doorW: 2 * TILE,
+    doorH: 2 * TILE,
+    interiorGems: 2,
+    interiorHeart: false,
+    interiorEnemy: false,
+    visited: false,
+    name: 'Cabin',
+  });
 
-  // House 2 at col 60: Similar structure, doorway on right, has heart inside
-  let h2Col = 60, h2W = 8, h2H = 4;
-  for (let r = 0; r < h2H; r++) {
-    tiles.push({ x: h2Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    tiles.push({ x: (h2Col + h2W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-  }
-  for (let c = 0; c < h2W; c++) {
-    tiles.push({
-      x: (h2Col + c) * TILE, y: (groundY - h2H) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h2W - 1, logLen: h2W,
-    });
-  }
-  for (let c = 0; c < h2W - 2; c++) {
-    tiles.push({
-      x: (h2Col + 1 + c) * TILE, y: (groundY - h2H - 1) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h2W - 3, logLen: h2W - 2,
-    });
-  }
-  for (let r = 1; r < h2H; r++) {
-    for (let c = 1; c < h2W - 1; c++) {
-      tiles.push({
-        x: (h2Col + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-  decorations.push({ x: (h2Col + 4) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
-  collectibles.push({ x: (h2Col + 3) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 16, h: 16, type: 'heart', alive: true });
+  // House 2 at col 60: 1 heart inside
+  houses.push({
+    x: 60 * TILE,
+    y: (groundY - 4) * TILE,
+    w: 8 * TILE,
+    h: 4 * TILE,
+    doorX: 60 * TILE + 3 * TILE,
+    doorY: groundY * TILE - 2 * TILE,
+    doorW: 2 * TILE,
+    doorH: 2 * TILE,
+    interiorGems: 0,
+    interiorHeart: true,
+    interiorEnemy: false,
+    visited: false,
+    name: 'Cabin',
+  });
 
   // 2 goblins patrolling between houses
   enemies.push({
@@ -5059,73 +5041,39 @@ function generateLevel4() {
   }
 
   // --- ZONE 4: Second village cluster (cols 150-220) ---
-  // House 3 at col 160: Has enemy inside (goblin)
-  let h3Col = 160, h3W = 7, h3H = 4;
-  for (let r = 0; r < h3H; r++) {
-    tiles.push({ x: h3Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    tiles.push({ x: (h3Col + h3W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-  }
-  for (let c = 0; c < h3W; c++) {
-    tiles.push({
-      x: (h3Col + c) * TILE, y: (groundY - h3H) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h3W - 1, logLen: h3W,
-    });
-  }
-  for (let c = 0; c < h3W - 2; c++) {
-    tiles.push({
-      x: (h3Col + 1 + c) * TILE, y: (groundY - h3H - 1) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h3W - 3, logLen: h3W - 2,
-    });
-  }
-  for (let r = 1; r < h3H; r++) {
-    for (let c = 1; c < h3W - 1; c++) {
-      tiles.push({
-        x: (h3Col + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-  decorations.push({ x: (h3Col + 3) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
-  // Enemy goblin inside house 3
-  enemies.push({
-    x: (h3Col + 4) * TILE + 4, y: (groundY - 2) * TILE, w: 24, h: 28,
-    vx: 0, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: (h3Col + 4) * TILE + 4, patrolRange: 3 * TILE,
-    animFrame: Math.random() * 100 | 0,
+  // House 3 at col 160: 1 goblin enemy + 3 gems inside
+  houses.push({
+    x: 160 * TILE,
+    y: (groundY - 4) * TILE,
+    w: 7 * TILE,
+    h: 4 * TILE,
+    doorX: 160 * TILE + 2 * TILE,
+    doorY: groundY * TILE - 2 * TILE,
+    doorW: 2 * TILE,
+    doorH: 2 * TILE,
+    interiorGems: 3,
+    interiorHeart: false,
+    interiorEnemy: true,
+    visited: false,
+    name: 'Cabin',
   });
 
-  // House 4 at col 190: Has gems inside
-  let h4Col = 190, h4W = 8, h4H = 4;
-  for (let r = 0; r < h4H; r++) {
-    tiles.push({ x: h4Col * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-    tiles.push({ x: (h4Col + h4W - 1) * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'dirt' });
-  }
-  for (let c = 0; c < h4W; c++) {
-    tiles.push({
-      x: (h4Col + c) * TILE, y: (groundY - h4H) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h4W - 1, logLen: h4W,
-    });
-  }
-  for (let c = 0; c < h4W - 2; c++) {
-    tiles.push({
-      x: (h4Col + 1 + c) * TILE, y: (groundY - h4H - 1) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === h4W - 3, logLen: h4W - 2,
-    });
-  }
-  for (let r = 1; r < h4H; r++) {
-    for (let c = 1; c < h4W - 1; c++) {
-      tiles.push({
-        x: (h4Col + c) * TILE, y: (groundY - 1 - r) * TILE,
-        w: TILE, h: TILE, type: 'dirt',
-      });
-    }
-  }
-  decorations.push({ x: (h4Col + 4) * TILE + TILE / 2, y: (groundY - 2) * TILE - 4, type: 'torch' });
-  collectibles.push({ x: (h4Col + 2) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
-  collectibles.push({ x: (h4Col + 4) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
-  collectibles.push({ x: (h4Col + 6) * TILE + 10, y: (groundY - 2) * TILE + 4, w: 12, h: 16, type: 'gem', alive: true });
+  // House 4 at col 190: 4 gems inside
+  houses.push({
+    x: 190 * TILE,
+    y: (groundY - 4) * TILE,
+    w: 8 * TILE,
+    h: 4 * TILE,
+    doorX: 190 * TILE + 3 * TILE,
+    doorY: groundY * TILE - 2 * TILE,
+    doorW: 2 * TILE,
+    doorH: 2 * TILE,
+    interiorGems: 4,
+    interiorHeart: false,
+    interiorEnemy: false,
+    visited: false,
+    name: 'Cabin',
+  });
 
   // 2 goblins patrolling village area
   enemies.push({
@@ -5196,7 +5144,7 @@ function generateLevel4() {
   }
 
   // --- ZONE 6: Boss arena (cols 300-390) ---
-  // Knight boss (hp:4) instead of war_chief
+  // Knight boss (hp:4)
   let bossX = 330 * TILE;
   enemies.push({
     x: bossX, y: (groundY - 2) * TILE, w: 40, h: 48,
@@ -6464,6 +6412,17 @@ function update() {
   if (gameState !== 'playing') return;
   frameCount++;
   levelTimer++;
+
+  // --- House interior array swap ---
+  let _outdoorTiles, _outdoorCollectibles, _outdoorEnemies;
+  if (houseInterior) {
+    _outdoorTiles = tiles;
+    _outdoorCollectibles = collectibles;
+    _outdoorEnemies = enemies;
+    tiles = houseInterior.tiles;
+    collectibles = houseInterior.collectibles;
+    enemies = houseInterior.enemies;
+  }
 
   // BATCH 6: Screen fade transition
   screenFade.update(); // increment level timer every frame
@@ -8193,6 +8152,152 @@ function update() {
     }
   }
 
+  // --- House transition state machine ---
+  if (houseTransition.active) {
+    if (houseTransition.fadeOut) {
+      houseTransition.alpha += 0.05;
+      if (houseTransition.alpha >= 1) {
+        houseTransition.fadeOut = false;
+        houseTransition.fadeIn = true;
+
+        if (houseTransition.exitingHouse) {
+          // Exiting house — restore outdoor state
+          houseInterior = null;
+          player.x = savedOutdoorState.playerX;
+          player.y = savedOutdoorState.playerY;
+          camera.x = savedOutdoorState.cameraX;
+          camera.y = savedOutdoorState.cameraY;
+          savedOutdoorState = null;
+        } else {
+          // Entering house — save outdoor state and create interior
+          savedOutdoorState = { playerX: player.x, playerY: player.y, cameraX: camera.x, cameraY: camera.y };
+          let house = houses[houseTransition.targetHouse];
+
+          // Create interior room (10 tiles wide × 6 tiles tall)
+          let roomW = 10, roomH = 6;
+          let interiorTiles = [];
+          let interiorCollectibles = [];
+          let interiorEnemies = [];
+
+          // Floor
+          for (let c = 0; c < roomW; c++) {
+            interiorTiles.push({ x: c * TILE, y: (roomH - 1) * TILE, w: TILE, h: TILE, type: 'ground' });
+          }
+          // Walls (left, right)
+          for (let r = 0; r < roomH; r++) {
+            interiorTiles.push({ x: 0, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
+            interiorTiles.push({ x: (roomW - 1) * TILE, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
+          }
+          // Ceiling
+          for (let c = 0; c < roomW; c++) {
+            interiorTiles.push({ x: c * TILE, y: 0, w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === roomW - 1, logLen: roomW });
+          }
+          // Back wall (row 1)
+          for (let c = 1; c < roomW - 1; c++) {
+            interiorTiles.push({ x: c * TILE, y: TILE, w: TILE, h: TILE, type: 'dirt' });
+          }
+
+          // Gems based on house contents
+          for (let g = 0; g < (house.interiorGems || 0); g++) {
+            interiorCollectibles.push({
+              x: (2 + g * 2) * TILE + 10, y: (roomH - 2) * TILE + 4,
+              w: 12, h: 16, type: 'gem', alive: true,
+            });
+          }
+
+          // Heart
+          if (house.interiorHeart) {
+            interiorCollectibles.push({
+              x: 5 * TILE, y: (roomH - 2) * TILE,
+              w: 16, h: 16, type: 'heart', alive: true,
+            });
+          }
+
+          // Enemy
+          if (house.interiorEnemy) {
+            interiorEnemies.push({
+              x: 6 * TILE + 4, y: (roomH - 2) * TILE, w: 24, h: 28,
+              vx: 0.5, vy: 0,
+              type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+              facing: -1, attackCooldown: 0,
+              patrolOrigin: 6 * TILE + 4, patrolRange: 3 * TILE,
+              animFrame: 0,
+            });
+          }
+
+          houseInterior = {
+            houseIndex: houseTransition.targetHouse,
+            tiles: interiorTiles,
+            collectibles: interiorCollectibles,
+            enemies: interiorEnemies,
+            roomW: roomW, roomH: roomH,
+            exitDoor: { x: 1 * TILE, y: (roomH - 2) * TILE, w: 2 * TILE, h: 2 * TILE },
+          };
+
+          house.visited = true;
+
+          // Place player inside the room
+          player.x = 7 * TILE;
+          player.y = (roomH - 2) * TILE;
+          player.vx = 0;
+          player.vy = 0;
+          camera.x = 0;
+          camera.y = 0;
+        }
+      }
+    }
+
+    if (houseTransition.fadeIn) {
+      houseTransition.alpha -= 0.05;
+      if (houseTransition.alpha <= 0) {
+        houseTransition.alpha = 0;
+        houseTransition.active = false;
+      }
+    }
+  }
+
+  // --- House entry ---
+  if (currentLevel === 4 && !houseInterior && !houseTransition.active) {
+    for (let i = 0; i < houses.length; i++) {
+      let house = houses[i];
+      let doorZone = { x: house.doorX, y: house.doorY, w: house.doorW, h: house.doorH };
+      if (rectOverlap(player, doorZone)) {
+        house._showPrompt = true;
+        // Enter on Up press (use a key guard to prevent re-entry)
+        if ((keys['ArrowUp'] || keys['KeyW']) && !player._enterHeld) {
+          player._enterHeld = true;
+          houseTransition = { active: true, fadeOut: true, fadeIn: false, alpha: 0, targetHouse: i, exitingHouse: false };
+          playSound('gem');
+        }
+      } else {
+        house._showPrompt = false;
+      }
+    }
+  }
+  // Clear the key guard when key is released
+  if (!keys['ArrowUp'] && !keys['KeyW']) {
+    player._enterHeld = false;
+  }
+
+  // --- House exit ---
+  if (houseInterior && !houseTransition.active) {
+    let exitDoor = houseInterior.exitDoor;
+    if (rectOverlap(player, exitDoor)) {
+      houseInterior._showExitPrompt = true;
+      if ((keys['ArrowUp'] || keys['KeyW']) && !player._exitHeld) {
+        player._exitHeld = true;
+        houseTransition = { active: true, fadeOut: true, fadeIn: false, alpha: 0, targetHouse: null, exitingHouse: true };
+        playSound('gem');
+      }
+    } else {
+      houseInterior._showExitPrompt = false;
+    }
+  }
+  // Clear the exit key guard when key is released
+  if (!keys['ArrowUp'] && !keys['KeyW']) {
+    player._exitHeld = false;
+  }
+
   // --- Arrow projectiles ---
   for (let i = projectiles.length - 1; i >= 0; i--) {
     let p = projectiles[i];
@@ -9198,6 +9303,16 @@ function update() {
   }
 
   if (shakeTimer > 0) shakeTimer--;
+
+  // --- Restore outdoor arrays ---
+  if (houseInterior && _outdoorTiles) {
+    houseInterior.tiles = tiles;
+    houseInterior.collectibles = collectibles;
+    houseInterior.enemies = enemies;
+    tiles = _outdoorTiles;
+    collectibles = _outdoorCollectibles;
+    enemies = _outdoorEnemies;
+  }
 }
 
 // ---- DRAWING ----
@@ -11740,6 +11855,17 @@ function draw() {
 
   // Camera vertical offset — applied to world-space elements only
   ctx.translate(screenShake.x, -camera.y + screenShake.y);
+
+  // --- House interior array swap ---
+  let _drawOutdoorTiles, _drawOutdoorCollectibles, _drawOutdoorEnemies;
+  if (houseInterior) {
+    _drawOutdoorTiles = tiles;
+    _drawOutdoorCollectibles = collectibles;
+    _drawOutdoorEnemies = enemies;
+    tiles = houseInterior.tiles;
+    collectibles = houseInterior.collectibles;
+    enemies = houseInterior.enemies;
+  }
 
   drawDecorations();
 
@@ -14369,6 +14495,187 @@ function draw() {
 
   // BATCH 6: Screen fade (drawn LAST, on top of everything)
   screenFade.draw(ctx, BASE_W, BASE_H);
+
+  // --- House interior background ---
+  if (houseInterior) {
+    ctx.save();
+    // Dark wooden interior background (override camera offset for this fill)
+    ctx.translate(-screenShake.x, camera.y - screenShake.y);
+    ctx.fillStyle = '#2a1a0a';
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.restore();
+
+    // Wooden floor boards
+    ctx.fillStyle = '#5C3D1A';
+    for (let c = 0; c < houseInterior.roomW; c++) {
+      let fx = c * TILE - camera.x;
+      let fy = (houseInterior.roomH - 1) * TILE - camera.y;
+      ctx.fillRect(fx, fy, TILE, TILE);
+      ctx.strokeStyle = '#4A2E12';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(fx, fy, TILE, TILE);
+    }
+
+    // Back wall (stone-like)
+    for (let r = 1; r < Math.min(3, houseInterior.roomH - 1); r++) {
+      for (let c = 1; c < houseInterior.roomW - 1; c++) {
+        let wx = c * TILE - camera.x;
+        let wy = r * TILE - camera.y;
+        ctx.fillStyle = '#3a2a1a';
+        ctx.fillRect(wx, wy, TILE, TILE);
+        ctx.strokeStyle = '#2a1a0a';
+        ctx.strokeRect(wx, wy, TILE, TILE);
+      }
+    }
+
+    // Torch on back wall
+    let torchX = 5 * TILE - camera.x;
+    let torchY = 2 * TILE - camera.y;
+    ctx.fillStyle = '#ffaa00';
+    ctx.fillRect(torchX + 12, torchY - 4, 8, 8);
+    ctx.fillStyle = '#ff6600';
+    ctx.fillRect(torchX + 13, torchY - 8, 6, 6);
+
+    // Exit door marker
+    let ed = houseInterior.exitDoor;
+    let edx = ed.x - camera.x;
+    let edy = ed.y - camera.y;
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(edx, edy, ed.w, ed.h);
+    ctx.strokeStyle = '#4a2a0a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(edx, edy, ed.w, ed.h);
+    // "EXIT" text above door
+    ctx.fillStyle = '#ffaa44';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('EXIT', edx + ed.w/2, edy - 4);
+  }
+
+  // --- Draw Houses (outdoor only) ---
+  if (!houseInterior) {
+    for (const house of houses) {
+      let hx = house.x - camera.x;
+      let hy = house.y - camera.y;
+      let hw = house.w;
+      let hh = house.h;
+
+      // Don't draw if off screen
+      if (hx + hw < -50 || hx > BASE_W + 50) continue;
+
+      // WALLS - wooden planks
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(hx, hy, hw, hh);
+
+      // Plank lines (horizontal)
+      ctx.strokeStyle = '#6B4E12';
+      ctx.lineWidth = 1;
+      for (let py = 0; py < hh; py += 8) {
+        ctx.beginPath();
+        ctx.moveTo(hx, hy + py);
+        ctx.lineTo(hx + hw, hy + py);
+        ctx.stroke();
+      }
+
+      // ROOF - peaked triangle
+      let roofPeak = hy - TILE * 2;
+      let roofOverhang = TILE;
+      ctx.fillStyle = '#5C2D0E';
+      ctx.beginPath();
+      ctx.moveTo(hx - roofOverhang, hy);
+      ctx.lineTo(hx + hw/2, roofPeak);
+      ctx.lineTo(hx + hw + roofOverhang, hy);
+      ctx.closePath();
+      ctx.fill();
+
+      // Roof shingle lines
+      ctx.strokeStyle = '#4A2008';
+      for (let ry = 0; ry < (hy - roofPeak); ry += 10) {
+        let progress = ry / (hy - roofPeak);
+        let leftX = hx - roofOverhang + (hw/2 + roofOverhang) * progress;
+        let rightX = hx + hw + roofOverhang - (hw/2 + roofOverhang) * progress;
+        ctx.beginPath();
+        ctx.moveTo(leftX, roofPeak + ry);
+        ctx.lineTo(rightX, roofPeak + ry);
+        ctx.stroke();
+      }
+
+      // DOOR - dark opening
+      let dx = house.doorX - camera.x;
+      let dy = house.doorY - camera.y;
+      ctx.fillStyle = '#1a0a00';
+      ctx.fillRect(dx, dy, house.doorW, house.doorH);
+      ctx.strokeStyle = '#4A2008';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(dx, dy, house.doorW, house.doorH);
+
+      // WINDOW - warm glow
+      let windowX = hx + hw - TILE * 2;
+      let windowY = hy + TILE;
+      let windowSize = TILE * 0.7;
+      ctx.fillStyle = 'rgba(255, 200, 50, 0.3)';
+      ctx.fillRect(windowX - 4, windowY - 4, windowSize + 8, windowSize + 8);
+      ctx.fillStyle = '#FFD866';
+      ctx.fillRect(windowX, windowY, windowSize, windowSize);
+      ctx.strokeStyle = '#6B4E12';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(windowX + windowSize/2, windowY);
+      ctx.lineTo(windowX + windowSize/2, windowY + windowSize);
+      ctx.moveTo(windowX, windowY + windowSize/2);
+      ctx.lineTo(windowX + windowSize, windowY + windowSize/2);
+      ctx.stroke();
+
+      // CHIMNEY (on right side of roof)
+      let chimneyX = hx + hw - TILE;
+      let chimneyY = roofPeak + (hy - roofPeak) * 0.3;
+      ctx.fillStyle = '#654321';
+      ctx.fillRect(chimneyX, chimneyY, TILE * 0.5, hy - chimneyY);
+    }
+  }
+
+  // --- House entry/exit prompts ---
+  if (!houseInterior) {
+    for (const house of houses) {
+      if (house._showPrompt) {
+        let px = house.doorX + house.doorW/2 - camera.x;
+        let py = house.doorY - 20 - camera.y;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(px - 50, py - 8, 100, 16);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Press UP to enter', px, py + 4);
+      }
+    }
+  }
+  if (houseInterior && houseInterior._showExitPrompt) {
+    let ed = houseInterior.exitDoor;
+    let px = ed.x + ed.w/2 - camera.x;
+    let py = ed.y - 20 - camera.y;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(px - 50, py - 8, 100, 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Press UP to exit', px, py + 4);
+  }
+
+  // --- House transition fade ---
+  if (houseTransition.active && houseTransition.alpha > 0) {
+    ctx.save();
+    ctx.translate(-screenShake.x, camera.y - screenShake.y);
+    ctx.fillStyle = `rgba(0, 0, 0, ${houseTransition.alpha})`;
+    ctx.fillRect(0, 0, BASE_W, BASE_H);
+    ctx.restore();
+  }
+
+  // --- Restore outdoor arrays ---
+  if (houseInterior && _drawOutdoorTiles) {
+    tiles = _drawOutdoorTiles;
+    collectibles = _drawOutdoorCollectibles;
+    enemies = _drawOutdoorEnemies;
+  }
 
   ctx.restore();
 }
