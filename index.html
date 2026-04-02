@@ -5060,19 +5060,23 @@ function generateLevel4() {
 
   // --- Outdoor Variety: Stockade fences, watchtowers, rope bridge ---
 
-  // Stockade fence segments (background decoration, 2-3 tiles high)
-  decorations.push({ x: 45 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 3 });
-  decorations.push({ x: 95 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 2 });
-  decorations.push({ x: 145 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 3 });
-  decorations.push({ x: 210 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 2 });
+  // Stockade fence segments (background decoration — y is ground level, posts grow upward)
+  decorations.push({ x: 45 * TILE, y: groundY * TILE, type: 'stockade_fence', height: 3 });
+  decorations.push({ x: 95 * TILE, y: groundY * TILE, type: 'stockade_fence', height: 2 });
+  decorations.push({ x: 145 * TILE, y: groundY * TILE, type: 'stockade_fence', height: 3 });
+  decorations.push({ x: 210 * TILE, y: groundY * TILE, type: 'stockade_fence', height: 2 });
 
-  // Watchtowers (decorative platform structures)
-  // Watchtower 1 at col ~50 (short — 3 tiles, jumpable)
-  for (let r = 0; r < 3; r++) {
-    tiles.push({ x: 50 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
-    tiles.push({ x: 51 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
-  }
-  // Platform on top
+  // Watchtowers (open archway designs — pillars on sides, platform above, walk through)
+  // Watchtower 1 at col ~50
+  // Left pillar
+  tiles.push({ x: 49 * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'log' });
+  tiles.push({ x: 49 * TILE, y: (groundY - 2) * TILE, w: TILE, h: TILE, type: 'log' });
+  tiles.push({ x: 49 * TILE, y: (groundY - 3) * TILE, w: TILE, h: TILE, type: 'log' });
+  // Right pillar
+  tiles.push({ x: 53 * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'log' });
+  tiles.push({ x: 53 * TILE, y: (groundY - 2) * TILE, w: TILE, h: TILE, type: 'log' });
+  tiles.push({ x: 53 * TILE, y: (groundY - 3) * TILE, w: TILE, h: TILE, type: 'log' });
+  // Platform spanning the gap
   for (let c = 0; c < 5; c++) {
     tiles.push({ x: (49 + c) * TILE, y: (groundY - 4) * TILE, w: TILE, h: TILE, type: 'log' });
   }
@@ -5142,18 +5146,18 @@ function generateLevel4() {
   decorations.push({ x: 145 * TILE, y: groundY * TILE - 4, type: 'campfire' });
   decorations.push({ x: 230 * TILE, y: groundY * TILE - 4, type: 'campfire' });
 
-  // Barrels scattered
-  decorations.push({ x: 35 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
-  decorations.push({ x: 55 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
-  decorations.push({ x: 85 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
-  decorations.push({ x: 110 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
-  decorations.push({ x: 170 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
-  decorations.push({ x: 200 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  // Barrels scattered (y = ground level, barrel draws upward from there)
+  decorations.push({ x: 35 * TILE, y: groundY * TILE, type: 'barrel' });
+  decorations.push({ x: 55 * TILE, y: groundY * TILE, type: 'barrel' });
+  decorations.push({ x: 85 * TILE, y: groundY * TILE, type: 'barrel' });
+  decorations.push({ x: 110 * TILE, y: groundY * TILE, type: 'barrel' });
+  decorations.push({ x: 170 * TILE, y: groundY * TILE, type: 'barrel' });
+  decorations.push({ x: 200 * TILE, y: groundY * TILE, type: 'barrel' });
 
-  // Crate stacks (decorative, no collision)
-  decorations.push({ x: 60 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 2 });
-  decorations.push({ x: 130 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 3 });
-  decorations.push({ x: 190 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 2 });
+  // Crate stacks (decorative, no collision — y = top of ground tile, crates stack upward)
+  decorations.push({ x: 60 * TILE, y: (groundY - 1) * TILE, type: 'crate_stack', height: 2 });
+  decorations.push({ x: 130 * TILE, y: (groundY - 1) * TILE, type: 'crate_stack', height: 3 });
+  decorations.push({ x: 190 * TILE, y: (groundY - 1) * TILE, type: 'crate_stack', height: 2 });
 
   // Outdoor enemies (patrol)
   for (let g = 0; g < 8; g++) {
@@ -11662,7 +11666,7 @@ function drawDecorations() {
     // --- NEW LEVEL 4 DECORATIONS ---
     if (d.type === 'campfire') {
       let cx = d.x - camera.x;
-      let cy = d.y - camera.y;
+      let cy = d.y;
       // Log base
       ctx.fillStyle = '#5a3a1a';
       ctx.fillRect(cx - 12, cy, 24, 6);
@@ -11687,32 +11691,29 @@ function drawDecorations() {
       ctx.fill();
     } else if (d.type === 'barrel') {
       let bx = d.x - camera.x;
-      let by = d.y - camera.y;
+      let by = d.y - 18; // center of barrel, 18px above ground
       // Barrel body
       ctx.fillStyle = '#8B6F47';
       ctx.beginPath();
-      ctx.ellipse(bx, by - 4, 14, 18, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, by, 14, 18, 0, 0, Math.PI * 2);
       ctx.fill();
       // Bands
       ctx.strokeStyle = '#5a4a2a';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.ellipse(bx, by - 10, 14, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, by - 8, 14, 5, 0, 0, Math.PI * 2);
       ctx.stroke();
       ctx.beginPath();
-      ctx.ellipse(bx, by, 14, 6, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(bx, by + 10, 14, 6, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, by + 8, 14, 5, 0, 0, Math.PI * 2);
       ctx.stroke();
       // Top rim
       ctx.fillStyle = '#6a5a3a';
       ctx.beginPath();
-      ctx.ellipse(bx, by - 22, 14, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(bx, by - 16, 12, 4, 0, 0, Math.PI * 2);
       ctx.fill();
     } else if (d.type === 'banner') {
       let bnx = d.x - camera.x;
-      let bny = d.y - camera.y;
+      let bny = d.y;
       // Pole
       ctx.fillStyle = '#8B6F47';
       ctx.fillRect(bnx - 1, bny, 2, 20);
@@ -11735,7 +11736,7 @@ function drawDecorations() {
       ctx.fill();
     } else if (d.type === 'stockade_fence') {
       let fx = d.x - camera.x;
-      let fy = d.y - camera.y;
+      let fy = d.y;
       let height = d.height || 3;
       // Vertical posts
       for (let i = 0; i < 4; i++) {
@@ -11747,7 +11748,7 @@ function drawDecorations() {
       ctx.fillRect(fx - 2, fy - height * TILE + 8, 24 + 2, 3);
     } else if (d.type === 'rope_post') {
       let rpx = d.x - camera.x;
-      let rpy = d.y - camera.y;
+      let rpy = d.y;
       // Post
       ctx.fillStyle = '#8B6F47';
       ctx.fillRect(rpx - 6, rpy - TILE, 12, TILE);
@@ -11758,7 +11759,7 @@ function drawDecorations() {
       ctx.fill();
     } else if (d.type === 'crate_stack') {
       let crx = d.x - camera.x;
-      let cry = d.y - camera.y;
+      let cry = d.y;
       let stackHeight = d.height || 2;
       for (let i = 0; i < stackHeight; i++) {
         ctx.fillStyle = '#8B6F47';
