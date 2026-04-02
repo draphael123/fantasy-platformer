@@ -12054,6 +12054,65 @@ function draw() {
     }
   }
 
+  // --- House interior background (drawn BEFORE tiles so it's behind everything) ---
+  if (houseInterior) {
+    // Dark wooden interior background
+    ctx.fillStyle = '#2a1a0a';
+    ctx.fillRect(-camera.x, -camera.y, houseInterior.roomW * TILE, houseInterior.roomH * TILE);
+
+    // Wooden floor boards (bottom 2 rows of walkable area)
+    ctx.fillStyle = '#5C3D1A';
+    for (let r = houseInterior.roomH - 2; r < houseInterior.roomH; r++) {
+      for (let c = 0; c < houseInterior.roomW; c++) {
+        let fx = c * TILE - camera.x;
+        let fy = r * TILE - camera.y;
+        ctx.fillRect(fx, fy, TILE, TILE);
+        ctx.strokeStyle = '#4A2E12';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(fx, fy, TILE, TILE);
+      }
+    }
+
+    // Back wall (stone-like) — rows 2 through roomH-3
+    for (let r = 2; r < houseInterior.roomH - 2; r++) {
+      for (let c = 2; c < houseInterior.roomW - 2; c++) {
+        let wx = c * TILE - camera.x;
+        let wy = r * TILE - camera.y;
+        ctx.fillStyle = (r + c) % 3 === 0 ? '#3a2a1a' : '#352618';
+        ctx.fillRect(wx, wy, TILE, TILE);
+        ctx.strokeStyle = '#2a1a0a';
+        ctx.strokeRect(wx, wy, TILE, TILE);
+      }
+    }
+
+    // Multiple torches on back wall
+    for (let tc = 6; tc < houseInterior.roomW - 4; tc += 8) {
+      let torchX = tc * TILE - camera.x;
+      let torchY = 4 * TILE - camera.y;
+      ctx.fillStyle = '#5a4020';
+      ctx.fillRect(torchX + 13, torchY + 8, 6, 12);
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(torchX + 12, torchY, 8, 10);
+      ctx.fillStyle = '#ff6600';
+      ctx.fillRect(torchX + 13, torchY - 4, 6, 6);
+    }
+
+    // Exit door marker
+    let ed = houseInterior.exitDoor;
+    let edx = ed.x - camera.x;
+    let edy = ed.y - camera.y;
+    ctx.fillStyle = '#1a0a00';
+    ctx.fillRect(edx, edy, ed.w, ed.h);
+    ctx.strokeStyle = '#4a2a0a';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(edx, edy, ed.w, ed.h);
+    // "EXIT" text above door
+    ctx.fillStyle = '#ffaa44';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('EXIT', edx + ed.w/2, edy - 4);
+  }
+
   // Tiles
   for (const t of tiles) drawTile(t);
 
@@ -14758,69 +14817,6 @@ function draw() {
 
   // BATCH 6: Screen fade (drawn LAST, on top of everything)
   screenFade.draw(ctx, BASE_W, BASE_H);
-
-  // --- House interior background ---
-  if (houseInterior) {
-    ctx.save();
-    // Dark wooden interior background (override camera offset for this fill)
-    ctx.translate(-screenShake.x, camera.y - screenShake.y);
-    ctx.fillStyle = '#2a1a0a';
-    ctx.fillRect(0, 0, BASE_W, BASE_H);
-    ctx.restore();
-
-    // Wooden floor boards (bottom 2 rows of walkable area)
-    ctx.fillStyle = '#5C3D1A';
-    for (let r = houseInterior.roomH - 2; r < houseInterior.roomH; r++) {
-      for (let c = 0; c < houseInterior.roomW; c++) {
-        let fx = c * TILE - camera.x;
-        let fy = r * TILE - camera.y;
-        ctx.fillRect(fx, fy, TILE, TILE);
-        ctx.strokeStyle = '#4A2E12';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(fx, fy, TILE, TILE);
-      }
-    }
-
-    // Back wall (stone-like) — rows 2 through roomH-3
-    for (let r = 2; r < houseInterior.roomH - 2; r++) {
-      for (let c = 2; c < houseInterior.roomW - 2; c++) {
-        let wx = c * TILE - camera.x;
-        let wy = r * TILE - camera.y;
-        ctx.fillStyle = (r + c) % 3 === 0 ? '#3a2a1a' : '#352618';
-        ctx.fillRect(wx, wy, TILE, TILE);
-        ctx.strokeStyle = '#2a1a0a';
-        ctx.strokeRect(wx, wy, TILE, TILE);
-      }
-    }
-
-    // Multiple torches on back wall
-    for (let tc = 6; tc < houseInterior.roomW - 4; tc += 8) {
-      let torchX = tc * TILE - camera.x;
-      let torchY = 4 * TILE - camera.y;
-      ctx.fillStyle = '#5a4020';
-      ctx.fillRect(torchX + 13, torchY + 8, 6, 12);
-      ctx.fillStyle = '#ffaa00';
-      ctx.fillRect(torchX + 12, torchY, 8, 10);
-      ctx.fillStyle = '#ff6600';
-      ctx.fillRect(torchX + 13, torchY - 4, 6, 6);
-    }
-
-    // Exit door marker
-    let ed = houseInterior.exitDoor;
-    let edx = ed.x - camera.x;
-    let edy = ed.y - camera.y;
-    ctx.fillStyle = '#1a0a00';
-    ctx.fillRect(edx, edy, ed.w, ed.h);
-    ctx.strokeStyle = '#4a2a0a';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(edx, edy, ed.w, ed.h);
-    // "EXIT" text above door
-    ctx.fillStyle = '#ffaa44';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('EXIT', edx + ed.w/2, edy - 4);
-  }
-
 
   // --- House entry/exit prompts ---
   if (!houseInterior) {
