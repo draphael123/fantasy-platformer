@@ -9318,10 +9318,13 @@ function update() {
   if (shakeTimer > 0) shakeTimer--;
 
   // --- Restore outdoor arrays ---
-  if (houseInterior && _outdoorTiles) {
-    houseInterior.tiles = tiles;
-    houseInterior.collectibles = collectibles;
-    houseInterior.enemies = enemies;
+  // Always swap back if we swapped in (even if houseInterior was cleared mid-frame by exit transition)
+  if (_outdoorTiles) {
+    if (houseInterior) {
+      houseInterior.tiles = tiles;
+      houseInterior.collectibles = collectibles;
+      houseInterior.enemies = enemies;
+    }
     tiles = _outdoorTiles;
     collectibles = _outdoorCollectibles;
     enemies = _outdoorEnemies;
