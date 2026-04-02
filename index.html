@@ -155,6 +155,10 @@
     <span id="zoomLabel" style="color:#dde;font-size:16px;font-weight:700;min-width:50px;text-align:center;">100%</span>
     <button class="overlay-btn" id="zoomInBtn" style="padding:6px 16px;font-size:18px;background:linear-gradient(135deg,#555,#666);box-shadow:0 3px 0 #333;">+</button>
   </div>
+  <div style="display:flex;gap:12px;align-items:center;margin:12px 0;">
+    <span style="color:#aab;font-size:14px;font-weight:600;">Sound:</span>
+    <button class="overlay-btn" id="muteBtn" style="padding:6px 20px;font-size:15px;background:linear-gradient(135deg,#27ae60,#2ecc71);box-shadow:0 3px 0 #1a7a42;min-width:80px;">ON</button>
+  </div>
   <button class="overlay-btn" id="resumeBtn" style="background:linear-gradient(135deg,#2980b9,#3498db);box-shadow:0 4px 0 #1a5276;">Resume</button>
   <button class="back-btn" id="pauseMenuBtn" style="margin-top:8px;">Quit to Menu</button>
   <div style="color:#667;margin-top:14px;font-size:13px;">Press Escape or P to resume</div>
@@ -219,6 +223,9 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Audio mute state
+let gameMuted = false;
+
 // Responsive canvas sizing
 const BASE_W = 960, BASE_H = 540;
 canvas.width = BASE_W; canvas.height = BASE_H;
@@ -231,7 +238,7 @@ function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 }
 function playSound(type) {
-  if (!audioCtx) return;
+  if (!audioCtx || gameMuted) return;
   let osc = audioCtx.createOscillator();
   let gain = audioCtx.createGain();
   osc.connect(gain);
@@ -6553,28 +6560,8 @@ function update() {
     if (player.coyoteTime > 0) player.coyoteTime--;
   }
 
-  // Wall sliding mechanics
-  if (!player.grounded && !player.dodging && !player.blocking && player.vy > 0) {
-    // Check if touching wall
-    let touchLeft = moveX === -1 && isTouchingWall(-1);
-    let touchRight = moveX === 1 && isTouchingWall(1);
-
-    if (touchLeft || touchRight) {
-      player.wallSliding = true;
-      player.wallDir = touchLeft ? -1 : 1;
-      // Slow fall speed on wall
-      player.vy = Math.min(player.vy, 1.5);
-      // Spawn occasional dust from wall contact
-      if (frameCount % 8 === 0) {
-        let dustX = player.wallDir === 1 ? player.x : player.x + player.w;
-        spawnParticles(dustX, player.y + player.h / 2, '#8a7a6a', 3, 2);
-      }
-    } else {
-      player.wallSliding = false;
-    }
-  } else {
-    player.wallSliding = false;
-  }
+  // Wall sliding disabled — doesn't fit the game feel
+  player.wallSliding = false;
 
   // Countdown wall jump cooldown
   if (player.wallJumpCooldown > 0) player.wallJumpCooldown--;
@@ -6586,21 +6573,7 @@ function update() {
   }
   if (player.jumpBuffer > 0) player.jumpBuffer--;
 
-  // Wall jump
-  if (player.wallSliding && player.wallJumpCooldown <= 0) {
-    let canWallJump = player.jumpBuffer > 0 || (jumpPressed && !player._jumpHeld);
-    if (canWallJump && !player.dodging && !player.blocking) {
-      player.vx = player.wallDir * 6; // launch away from wall
-      player.vy = -10; // upward velocity
-      player.jumpsLeft = player.maxJumps - 1;
-      player.coyoteTime = 0;
-      player.jumpBuffer = 0;
-      player.wallJumpCooldown = 10; // prevent spam
-      player.wallSliding = false;
-      playSound('jump');
-      spawnParticles(player.x + player.w / 2, player.y + player.h, '#aa99ff', 8, 5);
-    }
-  } else {
+  {
     // Jump (with coyote time + buffer support)
     let canJump = player.jumpsLeft > 0 || player.coyoteTime > 0;
     let wantsJump = player.jumpBuffer > 0 || (jumpPressed && !player._jumpHeld);
@@ -6989,24 +6962,7 @@ function update() {
   }
 
 
-  // --- Wall Jump Logic ---
-  if (player.wallSliding && player.wallJumpCooldown <= 0) {
-    let jumpPressed = (keys['ArrowUp'] || keys['KeyW'] || keys['Space']);
-    if (jumpPressed && !player._jumpHeld) {
-      // Execute wall jump
-      player.wallSliding = false;
-      player.vy = -10; // upward velocity
-      player.vx = 6 * (-player.wallDir); // push away from wall
-      player.jumpsLeft = player.maxJumps; // reset jumps after wall jump
-      player.coyoteTime = 0;
-      player.jumpBuffer = 0;
-      player.grounded = false;
-      player.wallJumpCooldown = 3; // brief cooldown
-      playSound('jump');
-      spawnParticles(player.x + player.w / 2, player.y + player.h, '#aaddff', 8, 5);
-    }
-  }
-  if (player.wallJumpCooldown > 0) player.wallJumpCooldown--;
+  // Wall jump removed
 
   // --- Squash/Stretch ---
   // Smoothly return to normal scale
@@ -14997,6 +14953,23 @@ document.getElementById('zoomInBtn').addEventListener('click', () => {
 document.getElementById('zoomOutBtn').addEventListener('click', () => {
   zoomLevel = Math.max(0.5, zoomLevel - 0.1);
   applyZoom();
+});
+
+// Mute control
+document.getElementById('muteBtn').addEventListener('click', () => {
+  gameMuted = !gameMuted;
+  let btn = document.getElementById('muteBtn');
+  if (gameMuted) {
+    if (MusicEngine.masterGain) MusicEngine.masterGain.gain.value = 0;
+    btn.textContent = 'OFF';
+    btn.style.background = 'linear-gradient(135deg,#c0392b,#e74c3c)';
+    btn.style.boxShadow = '0 3px 0 #7a1a11';
+  } else {
+    if (MusicEngine.masterGain) MusicEngine.fadeTo(MusicEngine.masterGain, MusicEngine.volume, 0.3);
+    btn.textContent = 'ON';
+    btn.style.background = 'linear-gradient(135deg,#27ae60,#2ecc71)';
+    btn.style.boxShadow = '0 3px 0 #1a7a42';
+  }
 });
 
 // Button controls
