@@ -11740,7 +11740,7 @@ function drawHUD() {
     }
 
     // Label
-    ctx.fillStyle = k < keyFragments ? '#ffaa00' : '#888888';
+    ctx.fillStyle = keyFragments >= 5 ? '#ffaa00' : '#888888';
     ctx.font = '10px monospace';
     ctx.fillText('FRAGMENTS', keyStartX, keyStartY + 16);
   }
