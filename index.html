@@ -2608,6 +2608,11 @@ let houseInterior = null; // { houseIndex, tiles, collectibles, enemies, roomW, 
 let houseTransition = { active: false, fadeOut: false, fadeIn: false, alpha: 0, targetHouse: null, exitingHouse: false };
 let savedOutdoorState = null; // saves player position when entering house
 
+// ---- LEVEL 4 KEY FRAGMENT SYSTEM ----
+let keyFragments = 0;
+let bossGateOpen = false;
+let bossGateTiles = [];
+
 // ---- WEATHER INITIALIZATION ----
 function initWeather() {
   weatherParticles = [];
@@ -4944,224 +4949,165 @@ function generateLevel4() {
     });
   }
 
-  // --- ZONE 2: First house cluster (cols 20-80) ---
-  // House 1 at col 30: 2 gems inside
+  // --- RESET LEVEL 4 GLOBALS ---
+  keyFragments = 0;
+  bossGateOpen = false;
+  bossGateTiles = [];
+
+  // --- ZONE 2: Houses with enemies (cols 10-260) ---
+  // House 1 at col 25: 4x bigger, 2-3 enemies inside
+  let houseWidth1 = 15 * TILE;
+  let houseHeight1 = 10 * TILE;
   houses.push({
-    x: 30 * TILE,
-    y: (groundY - 4) * TILE,
-    w: 7 * TILE,
-    h: 4 * TILE,
-    doorX: 30 * TILE + 2 * TILE,
-    doorY: groundY * TILE - 2 * TILE,
-    doorW: 2 * TILE,
-    doorH: 2 * TILE,
-    interiorGems: 2,
-    interiorHeart: false,
-    interiorEnemy: false,
+    x: 25 * TILE,
+    y: (groundY - Math.ceil(houseHeight1 / TILE)) * TILE,
+    w: houseWidth1,
+    h: houseHeight1,
+    doorX: 25 * TILE + 7 * TILE,
+    doorY: (groundY - 3) * TILE,
+    doorW: 3 * TILE,
+    doorH: 3 * TILE,
+    interiorEnemyCount: 2,
     visited: false,
-    name: 'Cabin',
+    fragmentCollected: false,
+    name: 'Goblin Den 1',
   });
 
-  // House 2 at col 60: 1 heart inside
+  // House 2 at col 70: 4x bigger, 2-3 enemies inside
+  let houseWidth2 = 16 * TILE;
+  let houseHeight2 = 10 * TILE;
   houses.push({
-    x: 60 * TILE,
-    y: (groundY - 4) * TILE,
-    w: 8 * TILE,
-    h: 4 * TILE,
-    doorX: 60 * TILE + 3 * TILE,
-    doorY: groundY * TILE - 2 * TILE,
-    doorW: 2 * TILE,
-    doorH: 2 * TILE,
-    interiorGems: 0,
-    interiorHeart: true,
-    interiorEnemy: false,
+    x: 70 * TILE,
+    y: (groundY - Math.ceil(houseHeight2 / TILE)) * TILE,
+    w: houseWidth2,
+    h: houseHeight2,
+    doorX: 70 * TILE + 8 * TILE,
+    doorY: (groundY - 3) * TILE,
+    doorW: 3 * TILE,
+    doorH: 3 * TILE,
+    interiorEnemyCount: 3,
     visited: false,
-    name: 'Cabin',
+    fragmentCollected: false,
+    name: 'Goblin Den 2',
   });
 
-  // 2 goblins patrolling between houses
-  enemies.push({
-    x: 35 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: 0.8, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: 35 * TILE + 4, patrolRange: 8 * TILE,
-    animFrame: Math.random() * 100 | 0,
-  });
-  enemies.push({
-    x: 55 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: -0.8, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: 55 * TILE + 4, patrolRange: 8 * TILE,
-    animFrame: Math.random() * 100 | 0,
+  // House 3 at col 120: 4x bigger, 2-3 enemies inside
+  let houseWidth3 = 15 * TILE;
+  let houseHeight3 = 10 * TILE;
+  houses.push({
+    x: 120 * TILE,
+    y: (groundY - Math.ceil(houseHeight3 / TILE)) * TILE,
+    w: houseWidth3,
+    h: houseHeight3,
+    doorX: 120 * TILE + 7 * TILE,
+    doorY: (groundY - 3) * TILE,
+    doorW: 3 * TILE,
+    doorH: 3 * TILE,
+    interiorEnemyCount: 2,
+    visited: false,
+    fragmentCollected: false,
+    name: 'Goblin Den 3',
   });
 
-  // Gems scattered in zone 2
-  for (let g = 0; g < 6; g++) {
-    collectibles.push({
-      x: (25 + g * 6) * TILE + 10, y: (groundY - 1) * TILE + 4,
-      w: 12, h: 16, type: 'gem', alive: true,
+  // House 4 at col 180: 4x bigger, 2-3 enemies inside
+  let houseWidth4 = 16 * TILE;
+  let houseHeight4 = 10 * TILE;
+  houses.push({
+    x: 180 * TILE,
+    y: (groundY - Math.ceil(houseHeight4 / TILE)) * TILE,
+    w: houseWidth4,
+    h: houseHeight4,
+    doorX: 180 * TILE + 8 * TILE,
+    doorY: (groundY - 3) * TILE,
+    doorW: 3 * TILE,
+    doorH: 3 * TILE,
+    interiorEnemyCount: 3,
+    visited: false,
+    fragmentCollected: false,
+    name: 'Goblin Den 4',
+  });
+
+  // House 5 at col 250: 4x bigger, 2-3 enemies inside
+  let houseWidth5 = 15 * TILE;
+  let houseHeight5 = 10 * TILE;
+  houses.push({
+    x: 250 * TILE,
+    y: (groundY - Math.ceil(houseHeight5 / TILE)) * TILE,
+    w: houseWidth5,
+    h: houseHeight5,
+    doorX: 250 * TILE + 7 * TILE,
+    doorY: (groundY - 3) * TILE,
+    doorW: 3 * TILE,
+    doorH: 3 * TILE,
+    interiorEnemyCount: 2,
+    visited: false,
+    fragmentCollected: false,
+    name: 'Goblin Den 5',
+  });
+
+  // Outdoor enemies (patrol)
+  for (let g = 0; g < 8; g++) {
+    enemies.push({
+      x: (10 + g * 30) * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
+      vx: (g % 2 === 0 ? 1 : -1) * 0.7, vy: 0,
+      type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+      facing: g % 2 === 0 ? 1 : -1, attackCooldown: 0,
+      patrolOrigin: (10 + g * 30) * TILE + 4, patrolRange: 12 * TILE,
+      animFrame: Math.random() * 100 | 0,
     });
   }
 
-  // --- ZONE 3: Open forest with trees (cols 80-150) ---
-  // Checkpoint in early forest
+  // Checkpoint
   checkpoint = {
-    x: 95 * TILE, y: groundY * TILE - 28,
+    x: 150 * TILE, y: groundY * TILE - 28,
     w: TILE, h: 28, activated: false,
   };
 
-  // 2 goblins in forest
-  enemies.push({
-    x: 90 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: 0.7, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: 90 * TILE + 4, patrolRange: 10 * TILE,
-    animFrame: Math.random() * 100 | 0,
-  });
-  enemies.push({
-    x: 130 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: -0.7, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: 130 * TILE + 4, patrolRange: 10 * TILE,
-    animFrame: Math.random() * 100 | 0,
-  });
-
-  // Tripwire hazard
-  hazards.push({
-    type: 'tripwire',
-    x: 110 * TILE, y: groundY * TILE - 2,
-    w: 2 * TILE, h: 4,
-    triggered: false,
-    arrowDir: 1,
-  });
-
-  // Gems scattered
-  for (let g = 0; g < 8; g++) {
+  // Gems scattered throughout
+  for (let g = 0; g < 20; g++) {
     collectibles.push({
-      x: (82 + g * 5) * TILE + 10, y: (groundY - 1) * TILE + 4,
+      x: (5 + g * 14) * TILE + 10, y: (groundY - 1) * TILE + 4,
       w: 12, h: 16, type: 'gem', alive: true,
     });
   }
 
-  // --- ZONE 4: Second village cluster (cols 150-220) ---
-  // House 3 at col 160: 1 goblin enemy + 3 gems inside
-  houses.push({
-    x: 160 * TILE,
-    y: (groundY - 4) * TILE,
-    w: 7 * TILE,
-    h: 4 * TILE,
-    doorX: 160 * TILE + 2 * TILE,
-    doorY: groundY * TILE - 2 * TILE,
-    doorW: 2 * TILE,
-    doorH: 2 * TILE,
-    interiorGems: 3,
-    interiorHeart: false,
-    interiorEnemy: true,
-    visited: false,
-    name: 'Cabin',
-  });
-
-  // House 4 at col 190: 4 gems inside
-  houses.push({
-    x: 190 * TILE,
-    y: (groundY - 4) * TILE,
-    w: 8 * TILE,
-    h: 4 * TILE,
-    doorX: 190 * TILE + 3 * TILE,
-    doorY: groundY * TILE - 2 * TILE,
-    doorW: 2 * TILE,
-    doorH: 2 * TILE,
-    interiorGems: 4,
-    interiorHeart: false,
-    interiorEnemy: false,
-    visited: false,
-    name: 'Cabin',
-  });
-
-  // 2 goblins patrolling village area
-  enemies.push({
-    x: 170 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: 0.8, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: 170 * TILE + 4, patrolRange: 8 * TILE,
-    animFrame: Math.random() * 100 | 0,
-  });
-  enemies.push({
-    x: 200 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: -0.8, vy: 0,
-    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0,
-    patrolOrigin: 200 * TILE + 4, patrolRange: 8 * TILE,
-    animFrame: Math.random() * 100 | 0,
-  });
-
-  // Checkpoint 2
-  hazards.push({
-    type: 'checkpoint2',
-    x: 210 * TILE, y: groundY * TILE - 28,
-    w: TILE, h: TILE, activated: false,
-  });
-
-  // Gems scattered
-  for (let g = 0; g < 7; g++) {
-    collectibles.push({
-      x: (152 + g * 8) * TILE + 10, y: (groundY - 1) * TILE + 4,
-      w: 12, h: 16, type: 'gem', alive: true,
-    });
+  // --- ZONE 3: Boss gate area (cols 290-310) ---
+  // Boss gate: 2 wide, 6 tall crate wall
+  for (let gx = 0; gx < 2; gx++) {
+    for (let gy = 0; gy < 6; gy++) {
+      let gateTile = {
+        x: (290 + gx) * TILE,
+        y: (groundY - 1 - gy) * TILE,
+        w: TILE,
+        h: TILE,
+        type: 'crate',
+        gateId: 'bossGate'
+      };
+      tiles.push(gateTile);
+      bossGateTiles.push(gateTile);
+    }
   }
 
-  // --- ZONE 5: Dense forest to boss area (cols 220-300) ---
-  // 1 shield goblin
-  enemies.push({
-    x: 240 * TILE + 4, y: (groundY - 1) * TILE, w: 24, h: 28,
-    vx: 0.6, vy: 0,
-    type: 'shield', hp: 2, maxHp: 2, alive: true, hurtTimer: 0,
-    facing: 1, attackCooldown: 0,
-    patrolOrigin: 240 * TILE + 4, patrolRange: 8 * TILE,
-    animFrame: 0, shieldUp: true, shieldStun: 0, aggro: false,
-  });
+  // Torch decorations on either side of gate
+  decorations.push({ x: 288 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
+  decorations.push({ x: 292 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
 
-  // Archer on elevated platform
-  let archerPlatCol = 270;
-  for (let c = 0; c < 4; c++) {
-    tiles.push({
-      x: (archerPlatCol + c) * TILE, y: (groundY - 3) * TILE,
-      w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === 3, logLen: 4,
-    });
-  }
-  enemies.push({
-    x: (archerPlatCol + 2) * TILE + 4, y: (groundY - 4) * TILE, w: 24, h: 28,
-    vx: 0, vy: 0, type: 'archer', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-    facing: -1, attackCooldown: 0, patrolOrigin: (archerPlatCol + 2) * TILE, patrolRange: 0,
-    animFrame: 0, shootTimer: 60, windingUp: 0, aggro: false,
-    telegraphing: false, telegraphTimer: 0, chargeUpEffect: 0,
-  });
+  // Gate sign
+  decorations.push({ x: 291 * TILE, y: (groundY - 8) * TILE, type: 'tutSign', text1: '5 KEY', text2: 'FRAGMENTS' });
 
-  // Gems scattered
-  for (let g = 0; g < 10; g++) {
-    collectibles.push({
-      x: (222 + g * 7) * TILE + 10, y: (groundY - 1) * TILE + 4,
-      w: 12, h: 16, type: 'gem', alive: true,
-    });
-  }
-
-  // --- ZONE 6: Boss arena (cols 300-390) ---
-  // Knight boss (hp:4)
-  let bossX = 330 * TILE;
+  // --- ZONE 4: Boss arena (cols 320-390) ---
+  // Goblin Lord boss (hp:6, larger, faster)
+  let bossX = 350 * TILE;
   enemies.push({
-    x: bossX, y: (groundY - 2) * TILE, w: 40, h: 48,
+    x: bossX, y: (groundY - 2) * TILE, w: 40, h: 44,
     vx: 0, vy: 0,
-    type: 'knight', hp: 4, maxHp: 4, alive: true, hurtTimer: 0,
+    type: 'goblin_lord', hp: 6, maxHp: 6, alive: true, hurtTimer: 0,
     facing: 1, attackCooldown: 0,
-    patrolOrigin: bossX, patrolRange: 6 * TILE,
+    patrolOrigin: bossX, patrolRange: 8 * TILE,
     animFrame: 0, grounded: false,
+    chargeTimer: 0, chargeDir: 1,
     phase: 'idle', phaseTimer: 60,
-    invulnTimer: 0, stompCooldown: 0,
+    invulnTimer: 0, chargeCooldown: 0,
   });
 
   // Torches flanking boss arena
@@ -6469,8 +6415,8 @@ function update() {
   if (nearCheckpoint !== MusicEngine.inRestZone) {
     MusicEngine.onRestZone(nearCheckpoint);
   }
-  // Boss HP reactivity (Level 5 boss or Level 2 knight)
-  let musicBoss = enemies.find(e => e.alive && (e.type === 'knight' || e.type === 'dryad_boss'));
+  // Boss HP reactivity (Level 2 knight, Level 3 dryad, or Level 4 goblin lord)
+  let musicBoss = enemies.find(e => e.alive && (e.type === 'knight' || e.type === 'dryad_boss' || e.type === 'goblin_lord'));
   if (musicBoss && musicBoss.hp < musicBoss.maxHp) {
     MusicEngine.onBossHPChange(musicBoss.hp / musicBoss.maxHp);
   }
@@ -7230,7 +7176,7 @@ function update() {
 
   // Dynamic zoom
   let bossNear = false;
-  let boss = enemies.find(e => e.type === 'knight' && e.alive);
+  let boss = enemies.find(e => (e.type === 'knight' || e.type === 'goblin_lord' || e.type === 'dryad_boss' || e.type === 'war_chief') && e.alive);
   if (boss && Math.abs(boss.x - player.x) < 300) bossNear = true;
   targetZoom = bossNear ? 1.15 : 1.0;
   if (!player.grounded && player.vy > 5) targetZoom = 0.92;
@@ -7531,6 +7477,102 @@ function update() {
       }
 
       // Portal reveal handled in post-loop boss check
+    } else if (e.type === 'goblin_lord') {
+      // --- GOBLIN LORD BOSS AI (Level 4) ---
+      let dx = player.x - e.x;
+      let dist = Math.abs(dx);
+      e.facing = dx > 0 ? 1 : -1;
+      e.aggro = dist < 350;
+      e.phaseTimer--;
+
+      // Charge timer countdown
+      if (e.chargeTimer === undefined) e.chargeTimer = 0;
+      if (e.chargeTimer > 0) e.chargeTimer--;
+
+      if (e.phase === 'idle') {
+        // Patrol slowly back and forth
+        e.vx = e.facing * 0.5;
+        if (e.x > e.patrolOrigin + e.patrolRange) e.vx = -0.5;
+        if (e.x < e.patrolOrigin - e.patrolRange) e.vx = 0.5;
+        if (e.aggro && e.phaseTimer <= 0) {
+          e.phase = 'charge_telegraph';
+          e.phaseTimer = 25;
+          e.chargeTimer = 25;
+        }
+      } else if (e.phase === 'charge_telegraph') {
+        // Telegraph — prepare to charge
+        e.vx = 0;
+        if (e.phaseTimer <= 0) {
+          e.phase = 'charge';
+          e.phaseTimer = 50;
+          e.chargeDir = dx > 0 ? 1 : -1;
+          e.vx = e.chargeDir * 2.5;
+          playSound('attack');
+          shakeTimer = 6;
+        }
+      } else if (e.phase === 'charge') {
+        // Charging — fast movement, destroy crates
+        e.vx = e.chargeDir * 2.5;
+        for (let ti = tiles.length - 1; ti >= 0; ti--) {
+          let t = tiles[ti];
+          if (t.type === 'crate' && rectOverlap(e, t)) {
+            tiles.splice(ti, 1);
+            spawnParticles(t.x + TILE / 2, t.y + TILE / 2, '#8B6914', 12, 5);
+          }
+        }
+        if (e.phaseTimer <= 0) {
+          e.phase = 'recover';
+          e.phaseTimer = 70;
+          e.vx = 0;
+        }
+      } else if (e.phase === 'recover') {
+        // Recovering — stands still
+        e.vx = 0;
+        if (e.phaseTimer <= 0) {
+          e.phase = e.aggro ? 'idle' : 'idle';
+          e.phaseTimer = 80;
+        }
+      }
+
+      // Contact damage
+      if (rectOverlap(player, e) && player.invincible <= 0 && !player.dodging && !player.blocking) {
+        let baseDamage = e.phase === 'charge' ? 2 : 1;
+        let incomingDmg = Math.max(1, baseDamage - Math.floor((player.defenseBonus || 0) / 2));
+        player.hp -= incomingDmg;
+        player.invincible = 60;
+        player.vy = -7;
+        player.vx = -e.facing * 6;
+        shakeTimer = 12;
+        damageFlash = 0.6;
+        playerDamageFlash = 10;
+        playSound('hurt');
+        spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ff4444', 15, 8);
+      } else if (rectOverlap(player, e) && player.blocking) {
+        let isParry = player.parryWindow > 0;
+        if (isParry) {
+          // Perfect parry stuns boss
+          e.hp--;
+          e.phase = 'recover';
+          e.phaseTimer = 100;
+          e.vx = -e.facing * 3;
+          shakeTimer = 15;
+          hitStop = 10;
+          spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ffffff', 16, 8);
+          playSound('block');
+          scorePopups.push({ x: player.x + player.w/2, y: player.y - 30, text: 'PARRY!', life: 50 });
+          if (e.hp <= 0) {
+            e.alive = false;
+            score += 1500;
+            playSound('kill');
+            spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ffcc00', 40, 12);
+            scorePopups.push({ x: e.x + e.w/2, y: e.y - 10, text: '+1500', life: 80 });
+            hitStop = 20;
+            shakeTimer = 25;
+            grantXP(e.type);
+          }
+        }
+      }
+
     } else if (e.type === 'war_chief') {
       // Goblin War Chief boss AI
       let dx = player.x - e.x;
@@ -8080,8 +8122,17 @@ function update() {
   // --- Boss portal reveal (checked after enemy loop so dead bosses still trigger it) ---
   if (exitPortal && exitPortal.hidden) {
     for (const e of enemies) {
-      // Knight boss on Levels 2 and 4
-      if (e.type === 'knight' && !e.alive && (currentLevel === 2 || currentLevel === 4)) {
+      // Knight boss on Level 2
+      if (e.type === 'knight' && !e.alive && currentLevel === 2) {
+        exitPortal.hidden = false;
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
+        spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
+        scorePopups.push({ x: exitPortal.x + TILE, y: exitPortal.y - 20, text: 'PORTAL OPENED!', life: 90 });
+        shakeTimer = 15;
+        break;
+      }
+      // Goblin Lord boss on Level 4
+      if (e.type === 'goblin_lord' && !e.alive && currentLevel === 4) {
         exitPortal.hidden = false;
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffdd44', 30, 12);
         spawnParticles(exitPortal.x + TILE, exitPortal.y + TILE, '#ffaa00', 20, 10);
@@ -8140,56 +8191,58 @@ function update() {
           // Entering house — outdoor state already saved at trigger time
           let house = houses[houseTransition.targetHouse];
 
-          // Create interior room (10 tiles wide × 6 tiles tall)
-          let roomW = 10, roomH = 6;
+          // Create interior room sized to fill the screen (30 x 17 tiles = 960 x 544)
+          let roomW = 30, roomH = 17;
           let interiorTiles = [];
           let interiorCollectibles = [];
           let interiorEnemies = [];
 
-          // Floor
+          // Floor (bottom 2 rows)
           for (let c = 0; c < roomW; c++) {
             interiorTiles.push({ x: c * TILE, y: (roomH - 1) * TILE, w: TILE, h: TILE, type: 'ground' });
+            interiorTiles.push({ x: c * TILE, y: (roomH - 2) * TILE, w: TILE, h: TILE, type: 'ground' });
           }
-          // Walls (left, right)
-          for (let r = 0; r < roomH; r++) {
+          // Walls (left 2 cols, right 2 cols)
+          for (let r = 0; r < roomH - 2; r++) {
             interiorTiles.push({ x: 0, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
+            interiorTiles.push({ x: TILE, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
             interiorTiles.push({ x: (roomW - 1) * TILE, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
+            interiorTiles.push({ x: (roomW - 2) * TILE, y: r * TILE, w: TILE, h: TILE, type: 'dirt' });
           }
-          // Ceiling
+          // Ceiling (top 2 rows)
           for (let c = 0; c < roomW; c++) {
             interiorTiles.push({ x: c * TILE, y: 0, w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === roomW - 1, logLen: roomW });
-          }
-          // Back wall (row 1)
-          for (let c = 1; c < roomW - 1; c++) {
-            interiorTiles.push({ x: c * TILE, y: TILE, w: TILE, h: TILE, type: 'dirt' });
+            interiorTiles.push({ x: c * TILE, y: TILE, w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === roomW - 1, logLen: roomW });
           }
 
-          // Gems based on house contents
-          for (let g = 0; g < (house.interiorGems || 0); g++) {
+          // Enemies (spawn multiple based on interiorEnemyCount)
+          let enemyCount = house.interiorEnemyCount || 2;
+          for (let e = 0; e < enemyCount; e++) {
+            let spawnX = (5 + e * 8) * TILE + 4;
+            if (spawnX > (roomW - 4) * TILE) spawnX = (5 + (e - 1) * 8) * TILE + 4;
+            interiorEnemies.push({
+              x: spawnX, y: (roomH - 3) * TILE, w: 24, h: 28,
+              vx: (e % 2 === 0 ? 1 : -1) * 0.6, vy: 0,
+              type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+              facing: e % 2 === 0 ? 1 : -1, attackCooldown: 0,
+              patrolOrigin: (4 + e * 8) * TILE, patrolRange: (roomW - 8) * TILE,
+              animFrame: 0,
+            });
+          }
+
+          // Some collectibles (gems and hearts removed - focus is on defeating enemies)
+          for (let g = 0; g < 3; g++) {
+            let gx = (8 + g * 6) * TILE + 10;
+            if (gx > (roomW - 4) * TILE) gx = (8 + (g - 1) * 6) * TILE + 10;
             interiorCollectibles.push({
-              x: (2 + g * 2) * TILE + 10, y: (roomH - 2) * TILE + 4,
+              x: gx, y: (roomH - 3) * TILE + 4,
               w: 12, h: 16, type: 'gem', alive: true,
             });
           }
 
-          // Heart
-          if (house.interiorHeart) {
-            interiorCollectibles.push({
-              x: 5 * TILE, y: (roomH - 2) * TILE,
-              w: 16, h: 16, type: 'heart', alive: true,
-            });
-          }
-
-          // Enemy
-          if (house.interiorEnemy) {
-            interiorEnemies.push({
-              x: 6 * TILE + 4, y: (roomH - 2) * TILE, w: 24, h: 28,
-              vx: 0.5, vy: 0,
-              type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
-              facing: -1, attackCooldown: 0,
-              patrolOrigin: 6 * TILE + 4, patrolRange: 3 * TILE,
-              animFrame: 0,
-            });
+          // Add some furniture: a platform shelf mid-room
+          for (let c = 10; c < 20; c++) {
+            interiorTiles.push({ x: c * TILE, y: (roomH - 6) * TILE, w: TILE, h: TILE, type: 'log', logStart: c === 10, logEnd: c === 19, logLen: 10 });
           }
 
           houseInterior = {
@@ -8198,16 +8251,17 @@ function update() {
             collectibles: interiorCollectibles,
             enemies: interiorEnemies,
             roomW: roomW, roomH: roomH,
-            exitDoor: { x: 1 * TILE, y: (roomH - 2) * TILE, w: 2 * TILE, h: 2 * TILE },
+            exitDoor: { x: 2 * TILE, y: (roomH - 3) * TILE, w: 2 * TILE, h: 2 * TILE },
           };
 
           house.visited = true;
 
-          // Place player inside the room
-          player.x = 7 * TILE;
-          player.y = (roomH - 2) * TILE;
+          // Place player inside the room, right side
+          player.x = 22 * TILE;
+          player.y = (roomH - 3) * TILE;
           player.vx = 0;
           player.vy = 0;
+          // Camera at origin — room fills the screen
           camera.x = 0;
           camera.y = 0;
         }
@@ -8265,6 +8319,43 @@ function update() {
   // Clear the exit key guard when key is released
   if (!keys['ArrowUp'] && !keys['KeyW']) {
     player._exitHeld = false;
+  }
+
+  // --- KEY FRAGMENT SYSTEM (Level 4) ---
+  if (currentLevel === 4 && houseInterior) {
+    // Check if all enemies in house interior are dead
+    let allEnemiesDead = true;
+    for (const e of houseInterior.enemies) {
+      if (e.alive) {
+        allEnemiesDead = false;
+        break;
+      }
+    }
+
+    // Award key fragment if all enemies dead and not yet collected
+    if (allEnemiesDead && !houses[houseInterior.houseIndex].fragmentCollected) {
+      houses[houseInterior.houseIndex].fragmentCollected = true;
+      keyFragments++;
+      scorePopups.push({ x: player.x + player.w/2, y: player.y - 40, text: `KEY FRAGMENT (${keyFragments}/5)!`, life: 60 });
+      spawnParticles(player.x + player.w/2, player.y + player.h/2, '#ffdd00', 20, 5);
+      playSound('gem');
+    }
+  }
+
+  // --- BOSS GATE SYSTEM (Level 4) ---
+  if (currentLevel === 4 && !bossGateOpen && keyFragments >= 5) {
+    bossGateOpen = true;
+    // Remove gate tiles
+    for (let i = tiles.length - 1; i >= 0; i--) {
+      if (tiles[i].gateId === 'bossGate') {
+        tiles.splice(i, 1);
+      }
+    }
+    // Portal effect
+    let gateX = 291 * TILE;
+    let gateY = (GROUND_Y - 3) * TILE;
+    spawnParticles(gateX, gateY, '#00ffff', 30, 8);
+    playSound('gem');
   }
 
   // --- Arrow projectiles ---
@@ -11550,7 +11641,7 @@ function drawHUD() {
   ctx.fillText(`Enemies: ${alive}`, BASE_W - 16, BASE_H - 16);
 
   // Boss HP bar at top of screen
-  let boss = enemies.find(e => e.type === 'knight' && e.alive);
+  let boss = enemies.find(e => (e.type === 'knight' || e.type === 'goblin_lord' || e.type === 'dryad_boss' || e.type === 'war_chief') && e.alive);
   let bossOnScreen = boss && (boss.x - camera.x > -50 && boss.x - camera.x < BASE_W + 50);
   if (boss && bossOnScreen) {
     let bossBarW = 200, bossBarH = 12;
@@ -11615,6 +11706,43 @@ function drawHUD() {
     ctx.font = 'bold 11px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`COMBO x${player.comboCount}`, 16, BASE_H - 25);
+  }
+
+  // KEY FRAGMENTS HUD (Level 4)
+  if (currentLevel === 4) {
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+
+    // Draw 5 key icons
+    let keyStartX = 16;
+    let keyStartY = 90;
+    let keySpacing = 20;
+
+    for (let k = 0; k < 5; k++) {
+      let keyX = keyStartX + k * keySpacing;
+      let keyY = keyStartY;
+
+      if (k < keyFragments) {
+        // Collected: gold key
+        ctx.fillStyle = '#ffdd44';
+      } else {
+        // Not collected: grey key
+        ctx.fillStyle = '#666666';
+      }
+
+      // Draw simple key icon (small diamond/circle)
+      ctx.beginPath();
+      ctx.arc(keyX, keyY, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = k < keyFragments ? '#ffaa00' : '#444444';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle = k < keyFragments ? '#ffaa00' : '#888888';
+    ctx.font = '10px monospace';
+    ctx.fillText('FRAGMENTS', keyStartX, keyStartY + 16);
   }
 
   // BATCH 4: Additional HUD elements (screen-space)
@@ -11843,6 +11971,88 @@ function draw() {
 
   // Draw level-specific ambient effects
   drawLevelAmbientEffects();
+
+  // --- Draw Houses (outdoor only) - BEFORE tiles so houses are behind ---
+  if (currentLevel === 4 && !houseInterior) {
+    for (const house of houses) {
+      let hx = house.x - camera.x;
+      let hy = house.y - camera.y;
+      let hw = house.w;
+      let hh = house.h;
+
+      // Don't draw if off screen
+      if (hx + hw < -50 || hx > BASE_W + 50) continue;
+
+      // WALLS - wooden planks
+      ctx.fillStyle = '#8B6914';
+      ctx.fillRect(hx, hy, hw, hh);
+
+      // Plank lines (horizontal)
+      ctx.strokeStyle = '#6B4E12';
+      ctx.lineWidth = 1;
+      for (let py = 0; py < hh; py += 8) {
+        ctx.beginPath();
+        ctx.moveTo(hx, hy + py);
+        ctx.lineTo(hx + hw, hy + py);
+        ctx.stroke();
+      }
+
+      // ROOF - peaked triangle (higher peak for bigger houses)
+      let roofPeak = hy - TILE * 4;
+      let roofOverhang = TILE * 1.5;
+      ctx.fillStyle = '#5C2D0E';
+      ctx.beginPath();
+      ctx.moveTo(hx - roofOverhang, hy);
+      ctx.lineTo(hx + hw/2, roofPeak);
+      ctx.lineTo(hx + hw + roofOverhang, hy);
+      ctx.closePath();
+      ctx.fill();
+
+      // Roof shingle lines
+      ctx.strokeStyle = '#4A2008';
+      for (let ry = 0; ry < (hy - roofPeak); ry += 10) {
+        let progress = ry / (hy - roofPeak);
+        let leftX = hx - roofOverhang + (hw/2 + roofOverhang) * progress;
+        let rightX = hx + hw + roofOverhang - (hw/2 + roofOverhang) * progress;
+        ctx.beginPath();
+        ctx.moveTo(leftX, roofPeak + ry);
+        ctx.lineTo(rightX, roofPeak + ry);
+        ctx.stroke();
+      }
+
+      // DOOR - dark opening (bigger door)
+      let dx = house.doorX - camera.x;
+      let dy = house.doorY - camera.y;
+      ctx.fillStyle = '#1a0a00';
+      ctx.fillRect(dx, dy, house.doorW, house.doorH);
+      ctx.strokeStyle = '#4A2008';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(dx, dy, house.doorW, house.doorH);
+
+      // WINDOW - warm glow (proportionally bigger)
+      let windowX = hx + hw - TILE * 3;
+      let windowY = hy + TILE * 2;
+      let windowSize = TILE * 1.2;
+      ctx.fillStyle = 'rgba(255, 200, 50, 0.3)';
+      ctx.fillRect(windowX - 4, windowY - 4, windowSize + 8, windowSize + 8);
+      ctx.fillStyle = '#FFD866';
+      ctx.fillRect(windowX, windowY, windowSize, windowSize);
+      ctx.strokeStyle = '#6B4E12';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(windowX + windowSize/2, windowY);
+      ctx.lineTo(windowX + windowSize/2, windowY + windowSize);
+      ctx.moveTo(windowX, windowY + windowSize/2);
+      ctx.lineTo(windowX + windowSize, windowY + windowSize/2);
+      ctx.stroke();
+
+      // CHIMNEY (on right side of roof)
+      let chimneyX = hx + hw - TILE * 1.5;
+      let chimneyY = roofPeak + (hy - roofPeak) * 0.3;
+      ctx.fillStyle = '#654321';
+      ctx.fillRect(chimneyX, chimneyY, TILE * 0.8, hy - chimneyY);
+    }
+  }
 
   // Tiles
   for (const t of tiles) drawTile(t);
@@ -13290,6 +13500,87 @@ function draw() {
           ctx.fillText('★', starX, starY);
         }
       }
+    } else if (e.type === 'goblin_lord') {
+      // --- GOBLIN LORD BOSS (Level 4) ---
+      let flip = e.facing < 0;
+      let lx = sx, ly = e.y - 4 + bob;
+
+      // Body — VERY LARGE green goblin with armor
+      ctx.fillStyle = e.hurtTimer > 0 ? '#ffffff' : '#4a8a2a';
+      ctx.fillRect(lx + 6, ly + 14, 28, 20); // torso
+
+      // Armor details
+      ctx.fillStyle = '#3a7a1a';
+      ctx.fillRect(lx + 8, ly + 16, 24, 6);
+      ctx.fillRect(lx + 8, ly + 26, 24, 6);
+
+      // Head — large green goblin with crown
+      ctx.fillStyle = e.hurtTimer > 0 ? '#ffffff' : '#5a9a3a';
+      ctx.fillRect(lx + 10, ly + 2, 20, 14);
+      ctx.fillStyle = '#4a8a2a';
+      ctx.fillRect(lx + 12, ly + 4, 16, 10); // face
+
+      // Eyes — yellow and menacing
+      ctx.fillStyle = '#ffdd44';
+      ctx.fillRect(lx + 14, ly + 6, 4, 4);
+      ctx.fillRect(lx + 22, ly + 6, 4, 4);
+
+      // Crown with spikes
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(lx + 8, ly - 2, 24, 5);
+      ctx.fillRect(lx + 12, ly - 8, 4, 8);
+      ctx.fillRect(lx + 20, ly - 8, 4, 8);
+      ctx.fillRect(lx + 16, ly - 10, 4, 10);
+
+      // Large club (weapon)
+      let clubX = flip ? lx - 8 : lx + e.w;
+      let chargeSwing = e.chargeTimer > 0 ? Math.sin(frameCount * 0.2) * 6 : 0;
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(clubX, ly + 10 + chargeSwing, 4, 28); // club handle
+      ctx.fillStyle = '#aa6644';
+      ctx.beginPath();
+      ctx.arc(clubX + 2, ly + 10 + chargeSwing - 8, 10, 0, Math.PI * 2);
+      ctx.fill(); // club head (round)
+      ctx.fillStyle = '#8B4513';
+      ctx.fillRect(clubX - 2, ly + 10 + chargeSwing - 8, 8, 6); // club spikes
+
+      // Legs
+      ctx.fillStyle = '#3a6a1a';
+      ctx.fillRect(lx + 12, ly + 32, 8, 10);
+      ctx.fillRect(lx + 22, ly + 32, 8, 10);
+
+      // HP bar (above head)
+      let hpBarW = 60;
+      let hpBarX = lx + e.w/2 - hpBarW/2;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(hpBarX, ly - 16, hpBarW, 6);
+      ctx.fillStyle = '#cc4444';
+      ctx.fillRect(hpBarX, ly - 16, hpBarW * (e.hp / e.maxHp), 6);
+      ctx.strokeStyle = '#ff6644';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(hpBarX, ly - 16, hpBarW, 6);
+
+      // Boss name
+      ctx.fillStyle = '#ff8844';
+      ctx.font = 'bold 10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('GOBLIN LORD', lx + e.w/2, ly - 20);
+
+      // Charge attack glow
+      if (e.chargeTimer > 0) {
+        ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.3) * 0.2;
+        ctx.fillStyle = '#ff4422';
+        ctx.fillRect(lx - 4, ly - 4, e.w + 8, e.h + 8);
+        ctx.globalAlpha = 1;
+      }
+
+      // Intimidate effect (spiky aura)
+      if (Math.random() < 0.1 && e.chargeTimer > 0) {
+        let sparkX = lx + Math.random() * e.w;
+        let sparkY = ly + Math.random() * e.h;
+        ctx.fillStyle = '#ff8844';
+        ctx.fillRect(sparkX, sparkY, 3, 3);
+      }
     } else if (e.type === 'war_chief') {
       // Goblin War Chief — large armored goblin
       let wcx = e.x - camera.x;
@@ -13777,7 +14068,7 @@ function draw() {
     ctx.restore();
     
     // Draw boss health bar if this is a boss
-    if (e.type === 'knight' || (e.boss !== undefined && e.boss)) {
+    if (e.type === 'knight' || e.type === 'goblin_lord' || e.type === 'dryad_boss' || e.type === 'war_chief' || (e.boss !== undefined && e.boss)) {
       drawBossHealthBar(e);
     }
   }
@@ -14477,36 +14768,42 @@ function draw() {
     ctx.fillRect(0, 0, BASE_W, BASE_H);
     ctx.restore();
 
-    // Wooden floor boards
+    // Wooden floor boards (bottom 2 rows of walkable area)
     ctx.fillStyle = '#5C3D1A';
-    for (let c = 0; c < houseInterior.roomW; c++) {
-      let fx = c * TILE - camera.x;
-      let fy = (houseInterior.roomH - 1) * TILE - camera.y;
-      ctx.fillRect(fx, fy, TILE, TILE);
-      ctx.strokeStyle = '#4A2E12';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(fx, fy, TILE, TILE);
+    for (let r = houseInterior.roomH - 2; r < houseInterior.roomH; r++) {
+      for (let c = 0; c < houseInterior.roomW; c++) {
+        let fx = c * TILE - camera.x;
+        let fy = r * TILE - camera.y;
+        ctx.fillRect(fx, fy, TILE, TILE);
+        ctx.strokeStyle = '#4A2E12';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(fx, fy, TILE, TILE);
+      }
     }
 
-    // Back wall (stone-like)
-    for (let r = 1; r < Math.min(3, houseInterior.roomH - 1); r++) {
-      for (let c = 1; c < houseInterior.roomW - 1; c++) {
+    // Back wall (stone-like) — rows 2 through roomH-3
+    for (let r = 2; r < houseInterior.roomH - 2; r++) {
+      for (let c = 2; c < houseInterior.roomW - 2; c++) {
         let wx = c * TILE - camera.x;
         let wy = r * TILE - camera.y;
-        ctx.fillStyle = '#3a2a1a';
+        ctx.fillStyle = (r + c) % 3 === 0 ? '#3a2a1a' : '#352618';
         ctx.fillRect(wx, wy, TILE, TILE);
         ctx.strokeStyle = '#2a1a0a';
         ctx.strokeRect(wx, wy, TILE, TILE);
       }
     }
 
-    // Torch on back wall
-    let torchX = 5 * TILE - camera.x;
-    let torchY = 2 * TILE - camera.y;
-    ctx.fillStyle = '#ffaa00';
-    ctx.fillRect(torchX + 12, torchY - 4, 8, 8);
-    ctx.fillStyle = '#ff6600';
-    ctx.fillRect(torchX + 13, torchY - 8, 6, 6);
+    // Multiple torches on back wall
+    for (let tc = 6; tc < houseInterior.roomW - 4; tc += 8) {
+      let torchX = tc * TILE - camera.x;
+      let torchY = 4 * TILE - camera.y;
+      ctx.fillStyle = '#5a4020';
+      ctx.fillRect(torchX + 13, torchY + 8, 6, 12);
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillRect(torchX + 12, torchY, 8, 10);
+      ctx.fillStyle = '#ff6600';
+      ctx.fillRect(torchX + 13, torchY - 4, 6, 6);
+    }
 
     // Exit door marker
     let ed = houseInterior.exitDoor;
@@ -14524,87 +14821,6 @@ function draw() {
     ctx.fillText('EXIT', edx + ed.w/2, edy - 4);
   }
 
-  // --- Draw Houses (outdoor only) ---
-  if (!houseInterior) {
-    for (const house of houses) {
-      let hx = house.x - camera.x;
-      let hy = house.y - camera.y;
-      let hw = house.w;
-      let hh = house.h;
-
-      // Don't draw if off screen
-      if (hx + hw < -50 || hx > BASE_W + 50) continue;
-
-      // WALLS - wooden planks
-      ctx.fillStyle = '#8B6914';
-      ctx.fillRect(hx, hy, hw, hh);
-
-      // Plank lines (horizontal)
-      ctx.strokeStyle = '#6B4E12';
-      ctx.lineWidth = 1;
-      for (let py = 0; py < hh; py += 8) {
-        ctx.beginPath();
-        ctx.moveTo(hx, hy + py);
-        ctx.lineTo(hx + hw, hy + py);
-        ctx.stroke();
-      }
-
-      // ROOF - peaked triangle
-      let roofPeak = hy - TILE * 2;
-      let roofOverhang = TILE;
-      ctx.fillStyle = '#5C2D0E';
-      ctx.beginPath();
-      ctx.moveTo(hx - roofOverhang, hy);
-      ctx.lineTo(hx + hw/2, roofPeak);
-      ctx.lineTo(hx + hw + roofOverhang, hy);
-      ctx.closePath();
-      ctx.fill();
-
-      // Roof shingle lines
-      ctx.strokeStyle = '#4A2008';
-      for (let ry = 0; ry < (hy - roofPeak); ry += 10) {
-        let progress = ry / (hy - roofPeak);
-        let leftX = hx - roofOverhang + (hw/2 + roofOverhang) * progress;
-        let rightX = hx + hw + roofOverhang - (hw/2 + roofOverhang) * progress;
-        ctx.beginPath();
-        ctx.moveTo(leftX, roofPeak + ry);
-        ctx.lineTo(rightX, roofPeak + ry);
-        ctx.stroke();
-      }
-
-      // DOOR - dark opening
-      let dx = house.doorX - camera.x;
-      let dy = house.doorY - camera.y;
-      ctx.fillStyle = '#1a0a00';
-      ctx.fillRect(dx, dy, house.doorW, house.doorH);
-      ctx.strokeStyle = '#4A2008';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(dx, dy, house.doorW, house.doorH);
-
-      // WINDOW - warm glow
-      let windowX = hx + hw - TILE * 2;
-      let windowY = hy + TILE;
-      let windowSize = TILE * 0.7;
-      ctx.fillStyle = 'rgba(255, 200, 50, 0.3)';
-      ctx.fillRect(windowX - 4, windowY - 4, windowSize + 8, windowSize + 8);
-      ctx.fillStyle = '#FFD866';
-      ctx.fillRect(windowX, windowY, windowSize, windowSize);
-      ctx.strokeStyle = '#6B4E12';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(windowX + windowSize/2, windowY);
-      ctx.lineTo(windowX + windowSize/2, windowY + windowSize);
-      ctx.moveTo(windowX, windowY + windowSize/2);
-      ctx.lineTo(windowX + windowSize, windowY + windowSize/2);
-      ctx.stroke();
-
-      // CHIMNEY (on right side of roof)
-      let chimneyX = hx + hw - TILE;
-      let chimneyY = roofPeak + (hy - roofPeak) * 0.3;
-      ctx.fillStyle = '#654321';
-      ctx.fillRect(chimneyX, chimneyY, TILE * 0.5, hy - chimneyY);
-    }
-  }
 
   // --- House entry/exit prompts ---
   if (!houseInterior) {
