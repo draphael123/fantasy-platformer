@@ -2612,6 +2612,7 @@ let savedOutdoorState = null; // saves player position when entering house
 let keyFragments = 0;
 let bossGateOpen = false;
 let bossGateTiles = [];
+let gateFragmentSlots = [];
 
 // ---- WEATHER INITIALIZATION ----
 function initWeather() {
@@ -4909,7 +4910,7 @@ function generateLevel3() {
 function generateLevel4() {
   let groundY = GROUND_Y; // = 15
 
-  // --- The Goblin Stockade: Simple forest village with ENTERABLE CUSTOM-DRAWN HOUSES ---
+  // --- The Goblin Stockade: Enhanced forest village with ENTERABLE CUSTOM-DRAWN HOUSES ---
   // COLS = 390, TILE = 32, continuous ground throughout
 
   // Continuous ground across entire level
@@ -4953,9 +4954,11 @@ function generateLevel4() {
   keyFragments = 0;
   bossGateOpen = false;
   bossGateTiles = [];
+  gateFragmentSlots = [];
 
   // --- ZONE 2: Houses with enemies (cols 10-260) ---
-  // House 1 at col 25: 4x bigger, 2-3 enemies inside
+
+  // House 1 at col 25: Armory
   let houseWidth1 = 15 * TILE;
   let houseHeight1 = 10 * TILE;
   houses.push({
@@ -4967,13 +4970,15 @@ function generateLevel4() {
     doorY: (groundY - 3) * TILE,
     doorW: 3 * TILE,
     doorH: 3 * TILE,
-    interiorEnemyCount: 2,
+    theme: 'armory',
+    interiorEnemyCount: 1,
+    interiorEnemyTypes: ['goblin'],
     visited: false,
     fragmentCollected: false,
-    name: 'Goblin Den 1',
+    name: 'Armory',
   });
 
-  // House 2 at col 70: 4x bigger, 2-3 enemies inside
+  // House 2 at col 70: Mess Hall
   let houseWidth2 = 16 * TILE;
   let houseHeight2 = 10 * TILE;
   houses.push({
@@ -4985,13 +4990,15 @@ function generateLevel4() {
     doorY: (groundY - 3) * TILE,
     doorW: 3 * TILE,
     doorH: 3 * TILE,
-    interiorEnemyCount: 3,
+    theme: 'mess_hall',
+    interiorEnemyCount: 2,
+    interiorEnemyTypes: ['goblin', 'goblin'],
     visited: false,
     fragmentCollected: false,
-    name: 'Goblin Den 2',
+    name: 'Mess Hall',
   });
 
-  // House 3 at col 120: 4x bigger, 2-3 enemies inside
+  // House 3 at col 120: Prison
   let houseWidth3 = 15 * TILE;
   let houseHeight3 = 10 * TILE;
   houses.push({
@@ -5003,13 +5010,15 @@ function generateLevel4() {
     doorY: (groundY - 3) * TILE,
     doorW: 3 * TILE,
     doorH: 3 * TILE,
-    interiorEnemyCount: 2,
+    theme: 'prison',
+    interiorEnemyCount: 3,
+    interiorEnemyTypes: ['goblin', 'goblin', 'archer'],
     visited: false,
     fragmentCollected: false,
-    name: 'Goblin Den 3',
+    name: 'Prison',
   });
 
-  // House 4 at col 180: 4x bigger, 2-3 enemies inside
+  // House 4 at col 180: Treasury
   let houseWidth4 = 16 * TILE;
   let houseHeight4 = 10 * TILE;
   houses.push({
@@ -5021,13 +5030,15 @@ function generateLevel4() {
     doorY: (groundY - 3) * TILE,
     doorW: 3 * TILE,
     doorH: 3 * TILE,
+    theme: 'treasury',
     interiorEnemyCount: 3,
+    interiorEnemyTypes: ['shield', 'shield', 'archer'],
     visited: false,
     fragmentCollected: false,
-    name: 'Goblin Den 4',
+    name: 'Treasury',
   });
 
-  // House 5 at col 250: 4x bigger, 2-3 enemies inside
+  // House 5 at col 250: War Room
   let houseWidth5 = 15 * TILE;
   let houseHeight5 = 10 * TILE;
   houses.push({
@@ -5039,11 +5050,100 @@ function generateLevel4() {
     doorY: (groundY - 3) * TILE,
     doorW: 3 * TILE,
     doorH: 3 * TILE,
-    interiorEnemyCount: 2,
+    theme: 'war_room',
+    interiorEnemyCount: 4,
+    interiorEnemyTypes: ['goblin', 'goblin', 'goblin', 'shield'],
     visited: false,
     fragmentCollected: false,
-    name: 'Goblin Den 5',
+    name: 'War Room',
   });
+
+  // --- Outdoor Variety: Stockade fences, watchtowers, rope bridge ---
+
+  // Stockade fence segments (background decoration, 2-3 tiles high)
+  decorations.push({ x: 45 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 3 });
+  decorations.push({ x: 95 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 2 });
+  decorations.push({ x: 145 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 3 });
+  decorations.push({ x: 210 * TILE, y: groundY * TILE - 2 * TILE, type: 'stockade_fence', height: 2 });
+
+  // Watchtowers (decorative platform structures)
+  // Watchtower 1 at col ~50
+  for (let r = 0; r < 4; r++) {
+    tiles.push({ x: 50 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+    tiles.push({ x: 51 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  // Platform on top
+  for (let c = 0; c < 5; c++) {
+    tiles.push({ x: (49 + c) * TILE, y: (groundY - 5) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  decorations.push({ x: 51 * TILE, y: (groundY - 5) * TILE, type: 'banner' });
+
+  // Watchtower 2 at col ~100
+  for (let r = 0; r < 5; r++) {
+    tiles.push({ x: 100 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+    tiles.push({ x: 101 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  // Platform on top
+  for (let c = 0; c < 5; c++) {
+    tiles.push({ x: (99 + c) * TILE, y: (groundY - 6) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  enemies.push({
+    x: 101 * TILE, y: (groundY - 7) * TILE, w: 24, h: 28,
+    vx: 0, vy: 0,
+    type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+    facing: 1, attackCooldown: 0,
+    patrolOrigin: 100 * TILE, patrolRange: 3 * TILE,
+    animFrame: 0,
+  });
+  decorations.push({ x: 101 * TILE, y: (groundY - 6) * TILE, type: 'banner' });
+
+  // Watchtower 3 at col ~160
+  for (let r = 0; r < 4; r++) {
+    tiles.push({ x: 160 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+    tiles.push({ x: 161 * TILE, y: (groundY - 1 - r) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  // Platform on top
+  for (let c = 0; c < 5; c++) {
+    tiles.push({ x: (159 + c) * TILE, y: (groundY - 5) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+  decorations.push({ x: 161 * TILE, y: (groundY - 5) * TILE, type: 'banner' });
+
+  // Rope bridge section (cols 210-230)
+  // Remove ground tiles for gap
+  for (let c = 211; c < 230; c++) {
+    for (let i = tiles.length - 1; i >= 0; i--) {
+      if (tiles[i].x === c * TILE && (tiles[i].type === 'ground' || tiles[i].type === 'dirt')) {
+        tiles.splice(i, 1);
+      }
+    }
+  }
+  // Rope bridge (1 tile thick log bridge)
+  for (let c = 212; c < 230; c++) {
+    tiles.push({ x: c * TILE, y: groundY * TILE, w: TILE, h: TILE, type: 'log', isBridge: true });
+  }
+  // Decorative posts
+  decorations.push({ x: 210 * TILE, y: groundY * TILE - TILE, type: 'rope_post' });
+  decorations.push({ x: 230 * TILE, y: groundY * TILE - TILE, type: 'rope_post' });
+
+  // Environmental storytelling decorations
+  // Campfires
+  decorations.push({ x: 45 * TILE, y: groundY * TILE - 4, type: 'campfire' });
+  decorations.push({ x: 95 * TILE, y: groundY * TILE - 4, type: 'campfire' });
+  decorations.push({ x: 145 * TILE, y: groundY * TILE - 4, type: 'campfire' });
+  decorations.push({ x: 230 * TILE, y: groundY * TILE - 4, type: 'campfire' });
+
+  // Barrels scattered
+  decorations.push({ x: 35 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  decorations.push({ x: 55 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  decorations.push({ x: 85 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  decorations.push({ x: 110 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  decorations.push({ x: 170 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+  decorations.push({ x: 200 * TILE, y: groundY * TILE - TILE, type: 'barrel' });
+
+  // Crate stacks (decorative, no collision)
+  decorations.push({ x: 60 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 2 });
+  decorations.push({ x: 130 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 3 });
+  decorations.push({ x: 190 * TILE, y: groundY * TILE - TILE, type: 'crate_stack', height: 2 });
 
   // Outdoor enemies (patrol)
   for (let g = 0; g < 8; g++) {
@@ -5088,6 +5188,12 @@ function generateLevel4() {
     }
   }
 
+  // Fragment slot positions on the gate (for visual drawing)
+  gateFragmentSlots = [];
+  for (let i = 0; i < 5; i++) {
+    gateFragmentSlots.push({ x: 289 * TILE + 16, y: (groundY - 5 + i) * TILE + 8 });
+  }
+
   // Torch decorations on either side of gate
   decorations.push({ x: 288 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
   decorations.push({ x: 292 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
@@ -5096,23 +5202,46 @@ function generateLevel4() {
   decorations.push({ x: 291 * TILE, y: (groundY - 8) * TILE, type: 'tutSign', text1: '5 KEY', text2: 'FRAGMENTS' });
 
   // --- ZONE 4: Boss arena (cols 320-390) ---
-  // Goblin Lord boss (hp:6, larger, faster)
+  // Arena walls (2-tile-high crate walls)
+  for (let c = 0; c < 2; c++) {
+    tiles.push({ x: (295 + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'crate' });
+    tiles.push({ x: (295 + c) * TILE, y: (groundY - 2) * TILE, w: TILE, h: TILE, type: 'crate' });
+  }
+  for (let c = 0; c < 2; c++) {
+    tiles.push({ x: (380 + c) * TILE, y: (groundY - 1) * TILE, w: TILE, h: TILE, type: 'crate' });
+    tiles.push({ x: (380 + c) * TILE, y: (groundY - 2) * TILE, w: TILE, h: TILE, type: 'crate' });
+  }
+
+  // Elevated platforms in arena
+  for (let c = 0; c < 5; c++) {
+    tiles.push({ x: (320 + c) * TILE, y: (groundY - 4) * TILE, w: TILE, h: TILE, type: 'log' });
+    tiles.push({ x: (355 + c) * TILE, y: (groundY - 4) * TILE, w: TILE, h: TILE, type: 'log' });
+  }
+
+  // Torches every 10 cols in arena
+  for (let t = 310; t < 380; t += 10) {
+    decorations.push({ x: t * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
+  }
+
+  // Goblin Lord boss (hp:8, larger, faster, enhanced AI)
   let bossX = 350 * TILE;
   enemies.push({
     x: bossX, y: (groundY - 2) * TILE, w: 40, h: 44,
     vx: 0, vy: 0,
-    type: 'goblin_lord', hp: 6, maxHp: 6, alive: true, hurtTimer: 0,
+    type: 'goblin_lord', hp: 8, maxHp: 8, alive: true, hurtTimer: 0,
     facing: 1, attackCooldown: 0,
     patrolOrigin: bossX, patrolRange: 8 * TILE,
     animFrame: 0, grounded: false,
     chargeTimer: 0, chargeDir: 1,
     phase: 'idle', phaseTimer: 60,
     invulnTimer: 0, chargeCooldown: 0,
+    groundPoundTimer: 0,
+    groundPoundCooldown: 0,
+    slamShockwave: null,
+    phase2: false,
+    summonCooldown: 0,
+    minionsSpawned: 0,
   });
-
-  // Torches flanking boss arena
-  decorations.push({ x: 305 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
-  decorations.push({ x: 375 * TILE + TILE / 2, y: groundY * TILE - 4, type: 'torch' });
 
   // Gems in arena
   for (let g = 0; g < 5; g++) {
@@ -7478,7 +7607,7 @@ function update() {
 
       // Portal reveal handled in post-loop boss check
     } else if (e.type === 'goblin_lord') {
-      // --- GOBLIN LORD BOSS AI (Level 4) ---
+      // --- GOBLIN LORD BOSS AI (Level 4) - Enhanced with Phase 2 ---
       let dx = player.x - e.x;
       let dist = Math.abs(dx);
       e.facing = dx > 0 ? 1 : -1;
@@ -7489,30 +7618,56 @@ function update() {
       if (e.chargeTimer === undefined) e.chargeTimer = 0;
       if (e.chargeTimer > 0) e.chargeTimer--;
 
+      // Ground pound timers
+      if (e.groundPoundTimer > 0) e.groundPoundTimer--;
+      if (e.groundPoundCooldown > 0) e.groundPoundCooldown--;
+      if (e.summonCooldown > 0) e.summonCooldown--;
+
+      // Phase 2 trigger at half HP
+      if (e.hp <= e.maxHp / 2 && !e.phase2) {
+        e.phase2 = true;
+        spawnParticles(e.x + e.w / 2, e.y + e.h / 2, '#ff4422', 30, 10);
+        scorePopups.push({ x: e.x + e.w / 2, y: e.y - 40, text: 'ENRAGED!', life: 90 });
+        shakeTimer = 15;
+      }
+
+      let chargeSpeedPhase2 = e.phase2 ? 4.5 : 3.5;
+      let recoveryTimePhase2 = e.phase2 ? 40 : 60;
+
       if (e.phase === 'idle') {
         // Patrol slowly back and forth
         e.vx = e.facing * 0.5;
         if (e.x > e.patrolOrigin + e.patrolRange) e.vx = -0.5;
         if (e.x < e.patrolOrigin - e.patrolRange) e.vx = 0.5;
         if (e.aggro && e.phaseTimer <= 0) {
-          e.phase = 'charge_telegraph';
-          e.phaseTimer = 25;
-          e.chargeTimer = 25;
+          let roll = Math.random();
+          if (e.phase2 && roll < 0.4) {
+            e.phase = 'ground_pound_telegraph';
+            e.phaseTimer = 20;
+            e.groundPoundTimer = 20;
+          } else {
+            e.phase = 'charge_telegraph';
+            e.phaseTimer = 30;
+            e.chargeTimer = 30;
+          }
         }
       } else if (e.phase === 'charge_telegraph') {
-        // Telegraph — prepare to charge
+        // Telegraph — freeze and show warning with red particles
         e.vx = 0;
+        if (frameCount % 6 === 0) {
+          spawnParticles(e.x + Math.random() * e.w, e.y + Math.random() * e.h, '#ff4422', 2, 1);
+        }
         if (e.phaseTimer <= 0) {
           e.phase = 'charge';
-          e.phaseTimer = 50;
+          e.phaseTimer = 45;
           e.chargeDir = dx > 0 ? 1 : -1;
-          e.vx = e.chargeDir * 2.5;
+          e.vx = e.chargeDir * chargeSpeedPhase2;
           playSound('attack');
           shakeTimer = 6;
         }
       } else if (e.phase === 'charge') {
         // Charging — fast movement, destroy crates
-        e.vx = e.chargeDir * 2.5;
+        e.vx = e.chargeDir * chargeSpeedPhase2;
         for (let ti = tiles.length - 1; ti >= 0; ti--) {
           let t = tiles[ti];
           if (t.type === 'crate' && rectOverlap(e, t)) {
@@ -7522,21 +7677,77 @@ function update() {
         }
         if (e.phaseTimer <= 0) {
           e.phase = 'recover';
-          e.phaseTimer = 70;
+          e.phaseTimer = recoveryTimePhase2;
+          e.vx = 0;
+        }
+      } else if (e.phase === 'ground_pound_telegraph') {
+        // Jump up with warning
+        e.vx = 0;
+        if (e.phaseTimer === e.groundPoundTimer) {
+          e.vy = -12;
+          playSound('attack');
+          spawnParticles(e.x + e.w / 2, e.y + e.h, '#ff4422', 15, 6);
+        }
+        if (e.phaseTimer <= 0) {
+          e.phase = 'ground_pound';
+          e.phaseTimer = 20;
+        }
+      } else if (e.phase === 'ground_pound') {
+        // Landing — create shockwave
+        if (e.phaseTimer === 20 && e.grounded) {
+          // Create shockwave
+          e.slamShockwave = {
+            x: e.x + e.w / 2,
+            y: (GROUND_Y - 1) * TILE,
+            life: 40,
+            speed: 3,
+            maxWidth: 200
+          };
+          shakeTimer = 20;
+          spawnParticles(e.x + e.w / 2, e.y + e.h, '#cc8844', 25, 10);
+          // Check if player is in damage radius
+          if (dist < 150 && player.invincible <= 0 && !player.dodging) {
+            player.hp -= 2;
+            player.invincible = 60;
+            player.vy = -10;
+            player.vx = Math.sign(dx) * 8;
+            damageFlash = 1;
+            playerDamageFlash = 12;
+          }
+        }
+        if (e.phaseTimer <= 0) {
+          e.phase = 'recover';
+          e.phaseTimer = recoveryTimePhase2;
           e.vx = 0;
         }
       } else if (e.phase === 'recover') {
-        // Recovering — stands still
+        // Recovering — stands still, stunned
         e.vx = 0;
         if (e.phaseTimer <= 0) {
-          e.phase = e.aggro ? 'idle' : 'idle';
-          e.phaseTimer = 80;
+          e.phase = 'idle';
+          e.phaseTimer = 60;
+          e.groundPoundCooldown = 120;
         }
+      }
+
+      // Update shockwave
+      if (e.slamShockwave && e.slamShockwave.life > 0) {
+        e.slamShockwave.life--;
+        // Check if player overlaps shockwave
+        let swLeft = e.slamShockwave.x - (40 - e.slamShockwave.life) * e.slamShockwave.speed;
+        let swRight = e.slamShockwave.x + (40 - e.slamShockwave.life) * e.slamShockwave.speed;
+        if (player.x + player.w > swLeft && player.x < swRight && player.y + player.h > e.slamShockwave.y - 8 && player.invincible <= 0 && !player.dodging) {
+          player.hp--;
+          player.invincible = 40;
+          spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ffaa44', 12, 6);
+        }
+      } else {
+        e.slamShockwave = null;
       }
 
       // Contact damage
       if (rectOverlap(player, e) && player.invincible <= 0 && !player.dodging && !player.blocking) {
-        let baseDamage = e.phase === 'charge' ? 2 : 1;
+        let baseDamage = (e.phase === 'charge' || e.phase === 'ground_pound') ? 2 : 1;
         let incomingDmg = Math.max(1, baseDamage - Math.floor((player.defenseBonus || 0) / 2));
         player.hp -= incomingDmg;
         player.invincible = 60;
@@ -8215,15 +8426,68 @@ function update() {
             interiorTiles.push({ x: c * TILE, y: TILE, w: TILE, h: TILE, type: 'log', logStart: c === 0, logEnd: c === roomW - 1, logLen: roomW });
           }
 
-          // Enemies (spawn multiple based on interiorEnemyCount)
-          let enemyCount = house.interiorEnemyCount || 2;
-          for (let e = 0; e < enemyCount; e++) {
+          // Theme-specific layout and decorations
+          if (house.theme === 'armory') {
+            // Weapon rack platforms at rows 8 and 11
+            for (let c = 5; c < 15; c++) {
+              interiorTiles.push({ x: c * TILE, y: 8 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+            for (let c = 5; c < 15; c++) {
+              interiorTiles.push({ x: c * TILE, y: 11 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+          } else if (house.theme === 'mess_hall') {
+            // Long table platform
+            for (let c = 8; c < 23; c++) {
+              interiorTiles.push({ x: c * TILE, y: 10 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+          } else if (house.theme === 'prison') {
+            // Vertical cage bars
+            for (let r = 6; r < 13; r++) {
+              interiorTiles.push({ x: 8 * TILE, y: r * TILE, w: TILE, h: TILE, type: 'log' });
+              interiorTiles.push({ x: 12 * TILE, y: r * TILE, w: TILE, h: TILE, type: 'log' });
+              interiorTiles.push({ x: 16 * TILE, y: r * TILE, w: TILE, h: TILE, type: 'log' });
+              interiorTiles.push({ x: 20 * TILE, y: r * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+          } else if (house.theme === 'treasury') {
+            // Gold piles (collectibles) and one large platform
+            for (let c = 12; c < 22; c++) {
+              interiorTiles.push({ x: c * TILE, y: 10 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+            for (let g = 0; g < 5; g++) {
+              interiorCollectibles.push({
+                x: (10 + g * 3) * TILE + 10, y: (roomH - 4) * TILE + 4,
+                w: 12, h: 16, type: 'gem', alive: true,
+              });
+            }
+          } else if (house.theme === 'war_room') {
+            // Multiple small platforms for complex layout
+            for (let c = 5; c < 10; c++) {
+              interiorTiles.push({ x: c * TILE, y: 9 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+            for (let c = 12; c < 17; c++) {
+              interiorTiles.push({ x: c * TILE, y: 8 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+            for (let c = 19; c < 25; c++) {
+              interiorTiles.push({ x: c * TILE, y: 10 * TILE, w: TILE, h: TILE, type: 'log' });
+            }
+          }
+
+          // Enemies (spawn based on interiorEnemyTypes array if available)
+          let enemyTypes = house.interiorEnemyTypes || [];
+          for (let e = 0; e < enemyTypes.length; e++) {
             let spawnX = (5 + e * 8) * TILE + 4;
             if (spawnX > (roomW - 4) * TILE) spawnX = (5 + (e - 1) * 8) * TILE + 4;
+            let enemyType = enemyTypes[e];
+            let enemyDef = {
+              'goblin': { w: 24, h: 28, hp: 1, vx: 0.6 },
+              'archer': { w: 24, h: 28, hp: 2, vx: 0.3 },
+              'shield': { w: 28, h: 30, hp: 2, vx: 0.4 }
+            };
+            let def = enemyDef[enemyType] || enemyDef['goblin'];
             interiorEnemies.push({
-              x: spawnX, y: (roomH - 3) * TILE, w: 24, h: 28,
-              vx: (e % 2 === 0 ? 1 : -1) * 0.6, vy: 0,
-              type: 'goblin', hp: 1, maxHp: 1, alive: true, hurtTimer: 0,
+              x: spawnX, y: (roomH - 3) * TILE, w: def.w, h: def.h,
+              vx: (e % 2 === 0 ? 1 : -1) * def.vx, vy: 0,
+              type: enemyType, hp: def.hp, maxHp: def.hp, alive: true, hurtTimer: 0,
               facing: e % 2 === 0 ? 1 : -1, attackCooldown: 0,
               patrolOrigin: (4 + e * 8) * TILE, patrolRange: (roomW - 8) * TILE,
               animFrame: 0,
@@ -8234,15 +8498,12 @@ function update() {
           for (let g = 0; g < 3; g++) {
             let gx = (8 + g * 6) * TILE + 10;
             if (gx > (roomW - 4) * TILE) gx = (8 + (g - 1) * 6) * TILE + 10;
-            interiorCollectibles.push({
-              x: gx, y: (roomH - 3) * TILE + 4,
-              w: 12, h: 16, type: 'gem', alive: true,
-            });
-          }
-
-          // Add some furniture: a platform shelf mid-room
-          for (let c = 10; c < 20; c++) {
-            interiorTiles.push({ x: c * TILE, y: (roomH - 6) * TILE, w: TILE, h: TILE, type: 'log', logStart: c === 10, logEnd: c === 19, logLen: 10 });
+            if (!house.theme || house.theme !== 'treasury') { // treasury already added its gems
+              interiorCollectibles.push({
+                x: gx, y: (roomH - 3) * TILE + 4,
+                w: 12, h: 16, type: 'gem', alive: true,
+              });
+            }
           }
 
           houseInterior = {
@@ -11388,6 +11649,126 @@ function drawDecorations() {
       ctx.arc(dx + 8, d.y - 6, 4, 0, Math.PI * 2);
       ctx.fill();
     }
+    // --- NEW LEVEL 4 DECORATIONS ---
+    if (d.type === 'campfire') {
+      let cx = d.x - camera.x;
+      let cy = d.y - camera.y;
+      // Log base
+      ctx.fillStyle = '#5a3a1a';
+      ctx.fillRect(cx - 12, cy, 24, 6);
+      // Animated flames
+      let flameHeight = 16 + Math.sin(frameCount * 0.15 + d.x * 0.01) * 8;
+      ctx.fillStyle = '#ff8800';
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy);
+      ctx.quadraticCurveTo(cx - 10, cy - flameHeight * 0.7, cx - 6, cy - flameHeight);
+      ctx.quadraticCurveTo(cx, cy - flameHeight * 0.8, cx, cy - flameHeight * 1.1);
+      ctx.quadraticCurveTo(cx, cy - flameHeight * 0.8, cx + 6, cy - flameHeight);
+      ctx.quadraticCurveTo(cx + 10, cy - flameHeight * 0.7, cx + 8, cy);
+      ctx.fill();
+      // Inner flame (yellow)
+      ctx.fillStyle = '#ffdd44';
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, cy);
+      ctx.quadraticCurveTo(cx - 6, cy - flameHeight * 0.5, cx - 2, cy - flameHeight * 0.8);
+      ctx.quadraticCurveTo(cx, cy - flameHeight * 0.6, cx, cy - flameHeight * 0.9);
+      ctx.quadraticCurveTo(cx, cy - flameHeight * 0.6, cx + 2, cy - flameHeight * 0.8);
+      ctx.quadraticCurveTo(cx + 6, cy - flameHeight * 0.5, cx + 5, cy);
+      ctx.fill();
+    } else if (d.type === 'barrel') {
+      let bx = d.x - camera.x;
+      let by = d.y - camera.y;
+      // Barrel body
+      ctx.fillStyle = '#8B6F47';
+      ctx.beginPath();
+      ctx.ellipse(bx, by - 4, 14, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Bands
+      ctx.strokeStyle = '#5a4a2a';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(bx, by - 10, 14, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(bx, by, 14, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(bx, by + 10, 14, 6, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Top rim
+      ctx.fillStyle = '#6a5a3a';
+      ctx.beginPath();
+      ctx.ellipse(bx, by - 22, 14, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.type === 'banner') {
+      let bnx = d.x - camera.x;
+      let bny = d.y - camera.y;
+      // Pole
+      ctx.fillStyle = '#8B6F47';
+      ctx.fillRect(bnx - 1, bny, 2, 20);
+      // Flag (green triangle)
+      ctx.fillStyle = '#2a7a2a';
+      ctx.beginPath();
+      ctx.moveTo(bnx + 2, bny);
+      ctx.lineTo(bnx + 2 + 20, bny + 6);
+      ctx.lineTo(bnx + 2, bny + 12);
+      ctx.closePath();
+      ctx.fill();
+      // Wave animation
+      let waveOffset = Math.sin(frameCount * 0.1 + d.x * 0.005) * 3;
+      ctx.fillStyle = '#3a9a3a';
+      ctx.beginPath();
+      ctx.moveTo(bnx + 2, bny + 4 + waveOffset);
+      ctx.lineTo(bnx + 16, bny + 8 + waveOffset * 0.8);
+      ctx.lineTo(bnx + 2, bny + 10 + waveOffset);
+      ctx.closePath();
+      ctx.fill();
+    } else if (d.type === 'stockade_fence') {
+      let fx = d.x - camera.x;
+      let fy = d.y - camera.y;
+      let height = d.height || 3;
+      // Vertical posts
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 === 0 ? '#8B6F47' : '#9a7d56';
+        ctx.fillRect(fx + i * 6, fy - height * TILE, 5, height * TILE);
+      }
+      // Horizontal rail
+      ctx.fillStyle = '#7a5a35';
+      ctx.fillRect(fx - 2, fy - height * TILE + 8, 24 + 2, 3);
+    } else if (d.type === 'rope_post') {
+      let rpx = d.x - camera.x;
+      let rpy = d.y - camera.y;
+      // Post
+      ctx.fillStyle = '#8B6F47';
+      ctx.fillRect(rpx - 6, rpy - TILE, 12, TILE);
+      // Top ornament
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath();
+      ctx.arc(rpx, rpy - TILE, 6, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.type === 'crate_stack') {
+      let crx = d.x - camera.x;
+      let cry = d.y - camera.y;
+      let stackHeight = d.height || 2;
+      for (let i = 0; i < stackHeight; i++) {
+        ctx.fillStyle = '#8B6F47';
+        ctx.fillRect(crx, cry - i * TILE, TILE, TILE);
+        ctx.strokeStyle = '#5a4a2a';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(crx, cry - i * TILE, TILE, TILE);
+        // X on crate
+        ctx.strokeStyle = '#5a4a2a';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(crx + 5, cry - i * TILE + 5);
+        ctx.lineTo(crx + TILE - 5, cry - i * TILE + TILE - 5);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(crx + TILE - 5, cry - i * TILE + 5);
+        ctx.lineTo(crx + 5, cry - i * TILE + TILE - 5);
+        ctx.stroke();
+      }
+    }
   }
 }
 
@@ -12115,6 +12496,41 @@ function draw() {
 
   // Tiles
   for (const t of tiles) drawTile(t);
+
+  // Draw fragment slots on boss gate (Level 4)
+  if (currentLevel === 4 && !bossGateOpen && gateFragmentSlots && gateFragmentSlots.length > 0) {
+    for (let i = 0; i < gateFragmentSlots.length; i++) {
+      let slot = gateFragmentSlots[i];
+      let slotX = slot.x - camera.x;
+      let slotY = slot.y - camera.y;
+      // Slot outline
+      ctx.strokeStyle = '#ffaa00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(slotX, slotY, 8, 0, Math.PI * 2);
+      ctx.stroke();
+      // Fill if collected
+      if (i < keyFragments) {
+        ctx.fillStyle = '#ffdd44';
+        ctx.beginPath();
+        ctx.arc(slotX, slotY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        // Glow
+        ctx.save();
+        ctx.globalAlpha = 0.3 + Math.sin(frameCount * 0.1 + i) * 0.15;
+        ctx.fillStyle = '#ffaa00';
+        ctx.beginPath();
+        ctx.arc(slotX, slotY, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.arc(slotX, slotY, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
 
   // Water in gaps — animated water surface where there's no ground (not in underground levels)
   if (currentLevel !== 4) {
@@ -13640,6 +14056,20 @@ function draw() {
         ctx.fillStyle = '#ff8844';
         ctx.fillRect(sparkX, sparkY, 3, 3);
       }
+
+      // Draw shockwave
+      if (e.slamShockwave && e.slamShockwave.life > 0) {
+        let sw = e.slamShockwave;
+        let swAlpha = sw.life / 40;
+        let currentWidth = (40 - sw.life) * sw.speed * 2;
+        ctx.save();
+        ctx.globalAlpha = swAlpha * 0.6;
+        ctx.fillStyle = '#aa6622';
+        ctx.fillRect(sw.x - currentWidth/2 - camera.x, sw.y - camera.y - 4, currentWidth, 8);
+        ctx.fillStyle = '#ffaa44';
+        ctx.fillRect(sw.x - currentWidth/2 - camera.x, sw.y - camera.y - 2, currentWidth, 4);
+        ctx.restore();
+      }
     } else if (e.type === 'war_chief') {
       // Goblin War Chief — large armored goblin
       let wcx = e.x - camera.x;
@@ -14429,67 +14859,41 @@ function draw() {
     ctx.restore();
   }
 
-  // Shield raised when blocking — draw actual shield in front of player with shimmer
+  // Shield raised when blocking — physical wooden/metal shield, no glow
   if (player.blocking) {
     let shieldFacing = player.facing;
-    let shX = shieldFacing > 0 ? px - 4 : px + player.w - 8;
-    let shY = player.y + 2;
+    let shX = shieldFacing > 0 ? px - 6 : px + player.w - 6;
+    let shY = player.y;
 
-    // Circular shield glow backdrop
-    ctx.save();
-    let shieldCX = shX + 6;
-    let shieldCY = shY + 13;
-    let glowAlpha = 0.2 + Math.sin(frameCount * 0.15) * 0.1;
-    ctx.globalAlpha = glowAlpha;
-    ctx.fillStyle = '#88ccff';
+    // Shield body — wooden with metal rim
+    ctx.fillStyle = '#6B4226'; // dark wood
+    ctx.fillRect(shX, shY + 4, 14, 24);
+    // Wood grain
+    ctx.fillStyle = '#7D4E2A';
+    ctx.fillRect(shX + 2, shY + 5, 10, 22);
+    ctx.fillStyle = '#8B5A2B';
+    ctx.fillRect(shX + 4, shY + 6, 6, 20);
+    // Metal rim — top, bottom, front edge
+    ctx.fillStyle = '#888';
+    ctx.fillRect(shX, shY + 2, 14, 3);
+    ctx.fillRect(shX, shY + 26, 14, 3);
+    ctx.fillRect(shX + (shieldFacing > 0 ? 0 : 12), shY + 2, 2, 27);
+    // Center boss (metal circle)
+    ctx.fillStyle = '#999';
     ctx.beginPath();
-    ctx.arc(shieldCX, shieldCY, 16, 0, Math.PI * 2);
+    ctx.arc(shX + 7, shY + 15, 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.restore();
-
-    // Shield body — rounded rectangle
-    ctx.fillStyle = '#4488cc';
-    ctx.fillRect(shX, shY + 2, 12, 22);
-    // Shield rim — brighter edge
-    ctx.fillStyle = '#66aaee';
-    ctx.fillRect(shX, shY, 12, 3);
-    ctx.fillRect(shX, shY + 22, 12, 3);
-    ctx.fillRect(shX + (shieldFacing > 0 ? 0 : 10), shY, 2, 25);
-    // Shield emblem — small cross or diamond
-    ctx.fillStyle = '#aaddff';
-    ctx.fillRect(shX + 4, shY + 8, 4, 4);
-    ctx.fillRect(shX + 5, shY + 6, 2, 8);
-    // Metallic highlight
-    ctx.fillStyle = 'rgba(200, 230, 255, 0.3)';
-    ctx.fillRect(shX + 2, shY + 3, 4, 10);
-    // Energy shimmer effect with pulse
-    let shimmer = Math.sin(frameCount * 0.2) * 0.2 + 0.15;
-    ctx.save();
-    ctx.globalAlpha = shimmer;
-    ctx.fillStyle = '#88ddff';
-    ctx.fillRect(shX - 1, shY, 14, 25);
-    ctx.restore();
-    // Sparkle particles
-    ctx.fillStyle = 'rgba(180, 230, 255, 0.6)';
-    let sparkX = shX + 6 + Math.sin(frameCount * 0.3) * 4;
-    let sparkY = shY + 6 + Math.cos(frameCount * 0.25) * 6;
-    ctx.fillRect(sparkX, sparkY, 2, 2);
-    ctx.fillRect(sparkX - 4, sparkY + 8, 2, 2);
-    // Subtle shimmer waves across shield
-    ctx.save();
-    ctx.globalAlpha = 0.2;
-    ctx.strokeStyle = '#aaddff';
-    ctx.lineWidth = 1;
-    let waveOffset = frameCount * 0.08;
+    ctx.fillStyle = '#aaa';
     ctx.beginPath();
-    ctx.moveTo(shX, shY + 5 + Math.sin(waveOffset) * 2);
-    ctx.quadraticCurveTo(shX + 6, shY + 3, shX + 12, shY + 5 + Math.sin(waveOffset + Math.PI/2) * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(shX, shY + 15 + Math.sin(waveOffset + Math.PI) * 2);
-    ctx.quadraticCurveTo(shX + 6, shY + 13, shX + 12, shY + 15 + Math.sin(waveOffset + 3*Math.PI/2) * 2);
-    ctx.stroke();
-    ctx.restore();
+    ctx.arc(shX + 7, shY + 15, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Cross brace
+    ctx.fillStyle = '#777';
+    ctx.fillRect(shX + 6, shY + 5, 2, 22);
+    ctx.fillRect(shX + 2, shY + 14, 10, 2);
+    // Subtle highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.1)';
+    ctx.fillRect(shX + 2, shY + 5, 4, 10);
   }
   ctx.restore();
 
