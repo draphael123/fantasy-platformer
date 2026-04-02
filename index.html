@@ -8154,6 +8154,9 @@ function update() {
 
   // --- House transition state machine ---
   if (houseTransition.active) {
+    // Freeze player during transitions so gravity doesn't cause issues
+    player.vx = 0;
+    player.vy = 0;
     if (houseTransition.fadeOut) {
       houseTransition.alpha += 0.05;
       if (houseTransition.alpha >= 1) {
@@ -8161,16 +8164,22 @@ function update() {
         houseTransition.fadeIn = true;
 
         if (houseTransition.exitingHouse) {
-          // Exiting house — restore outdoor state
+          // Exiting house — restore outdoor state near the house door, on the ground
+          let exitHouseIdx = houseInterior.houseIndex;
           houseInterior = null;
-          player.x = savedOutdoorState.playerX;
-          player.y = savedOutdoorState.playerY;
-          camera.x = savedOutdoorState.cameraX;
-          camera.y = savedOutdoorState.cameraY;
+          if (savedOutdoorState) {
+            // Position player at saved X but ensure Y is on the ground (row ROWS-2)
+            player.x = savedOutdoorState.playerX;
+            player.y = (ROWS - 2) * TILE - player.h;
+            player.vx = 0;
+            player.vy = 0;
+            player.grounded = true;
+            camera.x = savedOutdoorState.cameraX;
+            camera.y = savedOutdoorState.cameraY;
+          }
           savedOutdoorState = null;
         } else {
-          // Entering house — save outdoor state and create interior
-          savedOutdoorState = { playerX: player.x, playerY: player.y, cameraX: camera.x, cameraY: camera.y };
+          // Entering house — outdoor state already saved at trigger time
           let house = houses[houseTransition.targetHouse];
 
           // Create interior room (10 tiles wide × 6 tiles tall)
@@ -8266,6 +8275,8 @@ function update() {
         // Enter on Up press (use a key guard to prevent re-entry)
         if ((keys['ArrowUp'] || keys['KeyW']) && !player._enterHeld) {
           player._enterHeld = true;
+          // Save outdoor state NOW, before fade starts (so gravity doesn't mess up the saved position)
+          savedOutdoorState = { playerX: player.x, playerY: player.y, cameraX: camera.x, cameraY: camera.y };
           houseTransition = { active: true, fadeOut: true, fadeIn: false, alpha: 0, targetHouse: i, exitingHouse: false };
           playSound('gem');
         }
